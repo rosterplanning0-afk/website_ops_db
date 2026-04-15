@@ -1,0 +1,69 @@
+# Code Review Graph Ignore File
+# Exclude non-code, large, or secondary files to optimize indexing performance
+
+# Dependencies & Build Outputs
+node_modules/
+.next/
+dist/
+build/
+out/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+tsconfig.tsbuildinfo
+
+# Version Control & IDEs
+.git/
+.vscode/
+.idea/
+.claude/
+.agents/
+
+# Static Assets & Documentation
+public/
+docs/
+**/*.pdf
+**/*.svg
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.ico
+
+# Data & Database
+**/*.sqlite
+**/*.db
+**/*.csv
+**/*.xlsx
+**/*.xls
+**/*.sql
+database/
+
+# Logs & Temp
+*.log
+logs/
+temp/
+tmp/
+tmp_sync_emps.py
+
+# Secrets (should never be in the graph)
+.env*
+*.local
+credentials.json
+google_credentials.json
+desktop_client_credentials.json
+token.json
+
+# Lock files (too large and noisy)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Large or problematic JSON (keep package.json, tsconfig.json, components.json)
+# But ignore others if they are data-heavy
+# (Uncomment if needed)
+# *.json
+# !package.json
+# !tsconfig.json
+# !components.json
