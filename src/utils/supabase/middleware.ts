@@ -31,12 +31,12 @@ export async function updateSession(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser();
 
-    const isAuthPage = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname === '/';
+    const isAuthPage = request.nextUrl.pathname === '/';
 
     // Basic RBAC/Session parsing handling (expandable based on user profile fetched from DB if needed)
     if (!user && !isAuthPage && !request.nextUrl.pathname.startsWith('/api')) {
         const url = request.nextUrl.clone();
-        url.pathname = '/login';
+        url.pathname = '/';
         return NextResponse.redirect(url);
     }
 
