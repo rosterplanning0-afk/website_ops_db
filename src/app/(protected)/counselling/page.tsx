@@ -24,6 +24,8 @@ interface CounsellingRecord {
     counselling_date: string
     reason: string
     remarks: string
+    category: 'Good' | 'Bad'
+    score: number
     emp_name?: string
     counselled_by_name?: string
 }
@@ -41,6 +43,8 @@ export default function CounsellingPage() {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0])
     const [reason, setReason] = useState('')
     const [remarks, setRemarks] = useState('')
+    const [category, setCategory] = useState<'Good' | 'Bad'>('Good')
+    const [score, setScore] = useState(1)
     const [dropdownOpen, setDropdownOpen] = useState(false)
     
     const [loading, setLoading] = useState(true)
@@ -83,7 +87,7 @@ export default function CounsellingPage() {
 
         // Load counselling records (Admin sees all, others see their department's employees)
         let recordsQuery = supabase.from('employee_counselling').select(`
-            id, employee_id, counselling_date, reason, remarks, counselled_by,
+            id, employee_id, counselling_date, reason, remarks, counselled_by, category, score,
             users:counselled_by (full_name)
         `).order('counselling_date', { ascending: false }).limit(100)
         
@@ -100,6 +104,8 @@ export default function CounsellingPage() {
                 counselling_date: r.counselling_date,
                 reason: r.reason,
                 remarks: r.remarks,
+                category: r.category || 'Good',
+                score: r.score || (r.category === 'Bad' ? -1 : 1),
                 emp_name: empMap.get(r.employee_id) || 'Unknown (Out of Dept)',
                 counselled_by_name: (r.users as any)?.full_name || 'Admin'
             }))
@@ -136,7 +142,9 @@ export default function CounsellingPage() {
             counselled_by: user.id,
             counselling_date: date,
             reason: reason,
-            remarks: remarks || null
+            remarks: remarks || null,
+            category: category,
+            score: score
         })
 
         setSaving(false)
@@ -146,6 +154,8 @@ export default function CounsellingPage() {
             setReason('')
             setRemarks('')
             setSearchEmpId('')
+            setCategory('Good')
+            setScore(1)
             loadData() // Refresh table
             setTimeout(() => setSuccessMsg(''), 5000)
         } else {
@@ -233,6 +243,60 @@ export default function CounsellingPage() {
                                 <Textarea value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Detailed notes..." rows={3} />
                             </div>
 
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Category *</Label>
+                                    <div className="flex gap-2 p-1 bg-slate-100 rounded-md">
+                                        <button
+                                            type="button"
+                                            className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded ${category === 'Good' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
+                                            onClick={() => {
+                                                setCategory('Good');
+                                                setScore(1);
+                                            }}
+                                        >
+                                            Good
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`flex-1 py-1.5 px-3 text-xs font-semibold rounded ${category === 'Bad' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
+                                            onClick={() => {
+                                                setCategory('Bad');
+                                                setScore(-1);
+                                            }}
+                                        >
+                                            Bad
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Score ({category}) *</Label>
+                                    <select 
+                                        className="w-full flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                        value={score}
+                                        onChange={e => setScore(parseInt(e.target.value))}
+                                    >
+                                        {category === 'Good' ? (
+                                            <>
+                                                <option value={1}>1</option>
+                                                <option value={2}>2</option>
+                                                <option value={3}>3</option>
+                                                <option value={4}>4</option>
+                                                <option value={5}>5</option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value={-1}>-1</option>
+                                                <option value={-2}>-2</option>
+                                                <option value={-3}>-3</option>
+                                                <option value={-4}>-4</option>
+                                                <option value={-5}>-5</option>
+                                            </>
+                                        )}
+                                    </select>
+                                </div>
+                            </div>
+
                             <Button type="submit" className="w-full bg-red-600 hover:bg-red-700" disabled={saving || !selectedEmpId}>
                                 {saving ? 'Saving...' : 'Save Record'}
                             </Button>
@@ -255,6 +319,8 @@ export default function CounsellingPage() {
                                         <TableHead>Date</TableHead>
                                         <TableHead>Employee</TableHead>
                                         <TableHead>Reason</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead>Score</TableHead>
                                         <TableHead>Counselled By</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -272,6 +338,16 @@ export default function CounsellingPage() {
                                                 <TableCell>
                                                     <div className="text-sm font-semibold">{rec.reason}</div>
                                                     {rec.remarks && <div className="text-xs text-slate-500 line-clamp-2 mt-0.5">{rec.remarks}</div>}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${rec.category === 'Good' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                        {rec.category}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`text-sm font-bold ${rec.score > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {rec.score > 0 ? `+${rec.score}` : rec.score}
+                                                    </span>
                                                 </TableCell>
                                                 <TableCell className="text-sm text-slate-600">{rec.counselled_by_name}</TableCell>
                                             </TableRow>

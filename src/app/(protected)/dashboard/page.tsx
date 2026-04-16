@@ -138,7 +138,7 @@ export default async function DashboardPage() {
     if (role === 'employee') {
         const { data: myCounselling } = profile?.employee_id 
             ? await supabase.from('employee_counselling').select(`
-                id, counselling_date, reason, remarks, counselled_by,
+                id, counselling_date, reason, remarks, counselled_by, category, score,
                 users:counselled_by (full_name)
             `).eq('employee_id', profile.employee_id).order('counselling_date', { ascending: false }).limit(5)
             : { data: [] }
@@ -172,10 +172,18 @@ export default async function DashboardPage() {
                                         <li key={rec.id} className="p-3 bg-slate-50 rounded-md border border-slate-100">
                                             <div className="flex justify-between items-start mb-1">
                                                 <span className="font-semibold text-sm text-slate-800">{rec.reason}</span>
-                                                <span className="text-xs text-slate-500 font-medium whitespace-nowrap ml-2">
-                                                    {new Date(rec.counselling_date).toLocaleDateString('en-IN')}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${rec.category === 'Bad' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                                        {rec.category || 'Good'}
+                                                    </span>
+                                                    <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
+                                                        {new Date(rec.counselling_date).toLocaleDateString('en-IN')}
+                                                    </span>
+                                                </div>
                                             </div>
+                                            <p className={`text-xs font-bold mb-1 ${rec.score < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                                Score: {rec.score > 0 ? `+${rec.score}` : rec.score || (rec.category === 'Bad' ? -1 : 1)}
+                                            </p>
                                             {rec.remarks && <p className="text-xs text-slate-600 mb-2">{rec.remarks}</p>}
                                             <div className="text-[10px] text-slate-400 font-medium">
                                                 Counselled by: {(rec.users as any)?.full_name || 'Admin'}
