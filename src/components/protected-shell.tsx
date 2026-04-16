@@ -11,11 +11,12 @@ interface ProtectedShellProps {
     userName: string
     userEmail: string
     userDesignation: string
+    accessOverrides?: Record<string, boolean>
     children: React.ReactNode
 }
 
 export function ProtectedShell({
-    userRole, userDepartment, userName, userEmail, userDesignation, children
+    userRole, userDepartment, userName, userEmail, userDesignation, accessOverrides, children
 }: ProtectedShellProps) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
@@ -27,6 +28,7 @@ export function ProtectedShell({
                 userName={userName}
                 userEmail={userEmail}
                 userDesignation={userDesignation}
+                accessOverrides={accessOverrides}
                 collapsed={sidebarCollapsed}
                 onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             />

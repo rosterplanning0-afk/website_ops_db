@@ -34,6 +34,19 @@ export default async function ProtectedLayout({
     const userName = empData?.name || profile?.full_name || user.email || 'User'
     const userEmail = user.email || ''
 
+    // Fetch access overrides for the current role
+    const { data: routeOverrides } = await supabase
+        .from('access_rights_overrides')
+        .select('item_key, is_visible')
+        .eq('role', userRole)
+
+    const accessOverrides: Record<string, boolean> = {}
+    if (routeOverrides) {
+        routeOverrides.forEach(row => {
+            accessOverrides[row.item_key] = row.is_visible
+        })
+    }
+
     return (
         <>
             <ForcePasswordRedirect force={!!profile?.force_password_change} />
@@ -43,6 +56,7 @@ export default async function ProtectedLayout({
                 userName={userName}
                 userEmail={userEmail}
                 userDesignation={userDesignation}
+                accessOverrides={accessOverrides}
             >
                 {children}
             </ProtectedShell>

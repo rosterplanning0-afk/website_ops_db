@@ -25,16 +25,17 @@ interface SidebarProps {
     userName: string
     userEmail: string
     userDesignation?: string
+    accessOverrides?: Record<string, boolean>
     collapsed: boolean
     onToggleCollapse: () => void
 }
 
-export function Sidebar({ userRole, userDepartment, userName, userEmail, collapsed, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ userRole, userDepartment, userName, userEmail, accessOverrides, collapsed, onToggleCollapse }: SidebarProps) {
     const pathname = usePathname()
     const [mobileOpen, setMobileOpen] = useState(false)
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
-    const menuItems = getFilteredSidebar(userRole, userDepartment)
+    const menuItems = getFilteredSidebar(userRole, userDepartment, accessOverrides)
 
     function toggleGroup(label: string) {
         setExpandedGroups((prev) => {

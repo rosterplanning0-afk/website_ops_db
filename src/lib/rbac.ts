@@ -121,7 +121,7 @@ export const sidebarConfig: SidebarItem[] = [
         children: [
             { label: 'Daily Overview', href: '/roster-analytics/daily', icon: 'CalendarDays', roles: ['admin', 'cxo', 'hod', 'manager', 'roster_planners'] },
             { label: 'Historical Trends', href: '/roster-analytics/trends', icon: 'TrendingUp', roles: ['admin', 'cxo', 'hod', 'manager', 'roster_planners'] },
-            { label: 'Fatigue Management', href: '/roster-analytics/fatigue', icon: 'ShieldAlert', roles: ['admin', 'cxo', 'roster_planners'] },
+            { label: 'Fatigue Management', href: '/roster-analytics/fatigue', icon: 'ShieldAlert', roles: ['admin', 'cxo', 'hod', 'manager', 'roster_planners'] },
         ],
     },
     {
@@ -142,6 +142,7 @@ export const sidebarConfig: SidebarItem[] = [
         children: [
             { label: 'Employee Profile', href: '/employees/profile', icon: 'UserCircle', roles: '*' },
             { label: 'Delegation Settings', href: '/admin/delegation', icon: 'ShieldCheck', roles: ['admin'] },
+            { label: 'Access Rights', href: '/admin/access-rights', icon: 'ShieldAlert', roles: ['admin'] },
             { label: 'Change Password', href: '/account/change-password', icon: 'Key', roles: '*' },
         ],
     },
@@ -172,11 +173,23 @@ export const DEPT_CREW_MAPPING: Record<string, string[]> = {
     ]
 }
 
-export function getFilteredSidebar(role: UserRole, department?: string): SidebarItem[] {
+export function getFilteredSidebar(
+    role: UserRole, 
+    department?: string, 
+    accessOverrides?: Record<string, boolean>
+): SidebarItem[] {
     return sidebarConfig
         .filter((item) => {
-            // Basic role check
-            const roleMatch = item.roles === '*' || item.roles.includes(role)
+            let roleMatch = item.roles === '*' || item.roles.includes(role)
+            
+            // Apply override if exists, except for admin
+            if (role !== 'admin' && accessOverrides) {
+                const key = item.href || item.label
+                if (accessOverrides[key] !== undefined) {
+                    roleMatch = accessOverrides[key]
+                }
+            }
+
             if (!roleMatch) return false
 
             // Department specific logic for HOD and Manager
@@ -194,7 +207,16 @@ export function getFilteredSidebar(role: UserRole, department?: string): Sidebar
         .map((item) => ({
             ...item,
             children: item.children?.filter((child) => {
-                const roleMatch = child.roles === '*' || child.roles.includes(role)
+                let roleMatch = child.roles === '*' || child.roles.includes(role)
+                
+                // Apply override if exists, except for admin
+                if (role !== 'admin' && accessOverrides) {
+                    const key = child.href || child.label
+                    if (accessOverrides[key] !== undefined) {
+                        roleMatch = accessOverrides[key]
+                    }
+                }
+
                 if (!roleMatch) return false
 
                 // Also check children for department consistency

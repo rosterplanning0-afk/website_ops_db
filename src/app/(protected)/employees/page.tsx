@@ -13,6 +13,7 @@ export default function EmployeeListPage() {
     const [employees, setEmployees] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [canEdit, setCanEdit] = useState(false)
+    const [isAdmin, setIsAdmin] = useState(false)
     const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
 
@@ -43,6 +44,7 @@ export default function EmployeeListPage() {
             }
 
             setCanEdit(userRole === 'admin' || userRole === 'roster_planners')
+            setIsAdmin(userRole === 'admin')
 
             let query = supabase.from('employees').select('*').order('name', { ascending: true })
             
@@ -212,6 +214,7 @@ export default function EmployeeListPage() {
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 onSuccess={refreshData}
+                isAdmin={isAdmin}
             />
         </div>
     )

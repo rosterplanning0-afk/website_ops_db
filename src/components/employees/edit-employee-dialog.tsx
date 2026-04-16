@@ -32,9 +32,10 @@ interface EditEmployeeDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     onSuccess: () => void
+    isAdmin?: boolean
 }
 
-export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: EditEmployeeDialogProps) {
+export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, isAdmin = false }: EditEmployeeDialogProps) {
     const [formData, setFormData] = useState<Partial<Employee>>({
         name: '',
         designation: '',
@@ -164,16 +165,25 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess }: 
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="role">App Role</Label>
-                        <select
-                            id="role"
-                            value={formData.role}
-                            onChange={e => handleChange('role', e.target.value)}
-                            className="w-full border border-input rounded-md p-2 text-sm bg-white"
-                        >
-                            <option value="employee">Employee</option>
-                            <option value="manager">Manager</option>
-                            <option value="admin">Admin</option>
-                        </select>
+                        {isAdmin ? (
+                            <select
+                                id="role"
+                                value={formData.role}
+                                onChange={e => handleChange('role', e.target.value)}
+                                className="w-full border border-input rounded-md p-2 text-sm bg-white"
+                            >
+                                <option value="employee">Employee</option>
+                                <option value="manager">Manager</option>
+                                <option value="hod">HoD</option>
+                                <option value="cxo">CXO</option>
+                                <option value="roster_planners">Roster Planner</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        ) : (
+                            <div className="w-full border border-input rounded-md p-2 text-sm bg-slate-50 text-slate-500 capitalize">
+                                {formData.role || 'employee'}
+                            </div>
+                        )}
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="manager_id">Manager ID</Label>
