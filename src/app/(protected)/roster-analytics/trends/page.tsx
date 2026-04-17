@@ -31,30 +31,30 @@ export default function HistoricalTrendsPage() {
     const [crewTypes, setCrewTypes] = useState<string[]>([])
     const [userRole, setUserRole] = useState<string>('')
     const [userDept, setUserDept] = useState<string>('')
+    const [userInfoLoaded, setUserInfoLoaded] = useState(false)
     const supabase = createClient()
 
     useEffect(() => {
         async function fetchUserInfo() {
             const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
-            const { data: profile } = await supabase.from('users').select('role, employee_id').eq('id', user.id).single()
-            if (profile?.employee_id) {
-                const { data: empInfo } = await supabase.from('employees').select('role, department').eq('employee_id', profile.employee_id).single()
-                if (empInfo) {
-                    setUserRole(empInfo.role?.toLowerCase() || profile.role?.toLowerCase() || '')
-                    setUserDept(empInfo.department || '')
+            if (user) {
+                const { data: profile } = await supabase.from('users').select('role, employee_id').eq('id', user.id).single()
+                if (profile?.employee_id) {
+                    const { data: empInfo } = await supabase.from('employees').select('role, department').eq('employee_id', profile.employee_id).single()
+                    setUserRole(empInfo?.role?.toLowerCase() || profile.role?.toLowerCase() || '')
+                    setUserDept(empInfo?.department || '')
+                } else if (profile) {
+                    setUserRole(profile.role?.toLowerCase() || '')
                 }
-            } else if (profile) {
-                setUserRole(profile.role?.toLowerCase() || '')
             }
+            setUserInfoLoaded(true)
         }
         fetchUserInfo()
     }, [])
 
     useEffect(() => {
         async function fetchData() {
-            if (!userRole && loading) return
+            if (!userInfoLoaded) return
             setLoading(true)
 
             let query = supabase
@@ -83,7 +83,7 @@ export default function HistoricalTrendsPage() {
             setLoading(false)
         }
         fetchData()
-    }, [fromDate, toDate, userRole, userDept])
+    }, [fromDate, toDate, userRole, userDept, userInfoLoaded])
 
     // Aggregate by date (across all crew types and departments)
     const chartData = useMemo(() => {

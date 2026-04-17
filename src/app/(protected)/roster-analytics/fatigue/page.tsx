@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ShieldAlert, Clock, AlertTriangle, Award, TrendingUp } from 'lucide-react'
+import { ShieldAlert, Clock, AlertTriangle, Award, TrendingUp, Search } from 'lucide-react'
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip, Legend, ResponsiveContainer,
@@ -44,21 +44,43 @@ export default function FatigueManagementPage() {
     const [loading, setLoading] = useState(true)
     const [crewTypes, setCrewTypes] = useState<string[]>([])
     const [activeTab, setActiveTab] = useState<'grid' | 'hours' | 'compliance'>('grid')
+    const [leaderboardSearch, setLeaderboardSearch] = useState('')
+    const [sortKey, setSortKey] = useState<'name' | 'totalHours' | 'totalShifts' | 'violations'>('totalHours')
+    const [sortAsc, setSortAsc] = useState(false)
     const supabase = createClient()
 
     useEffect(() => {
         async function fetchData() {
             setLoading(true)
-            const { data: rows, error } = await supabase
-                .from('v_daily_roster_summary')
-                .select('*')
-                .gte('date', fromDate)
-                .lte('date', toDate)
-                .order('date', { ascending: true })
+            let allRows: DailyRosterRow[] = []
+            let offset = 0
+            const limit = 1000
+            let hasMore = true
 
-            if (!error && rows) {
-                setData(rows as DailyRosterRow[])
-                const types = [...new Set(rows.map((r: DailyRosterRow) => r.crew_type).filter(Boolean))]
+            while (hasMore) {
+                const { data: rows, error } = await supabase
+                    .from('v_daily_roster_summary')
+                    .select('*')
+                    .gte('date', fromDate)
+                    .lte('date', toDate)
+                    .order('date', { ascending: true })
+                    .range(offset, offset + limit - 1)
+
+                if (error || !rows) {
+                    hasMore = false
+                } else {
+                    allRows = [...allRows, ...(rows as DailyRosterRow[])]
+                    if (rows.length < limit) {
+                        hasMore = false
+                    } else {
+                        offset += limit
+                    }
+                }
+            }
+
+            if (allRows.length > 0) {
+                setData(allRows)
+                const types = [...new Set(allRows.map(r => r.crew_type).filter(Boolean))]
                 setCrewTypes(types as string[])
             }
             setLoading(false)
@@ -74,21 +96,28 @@ export default function FatigueManagementPage() {
     // Build pivot: employees x dates
     const { employees, dates, pivot } = useMemo(() => {
         const empMap: Record<string, string> = {}
-        const dateSet = new Set<string>()
         const pivotMap: Record<string, Record<string, DailyRosterRow>> = {}
 
         filteredData.forEach(r => {
             empMap[r.emp_id] = r.name
-            dateSet.add(r.date)
             if (!pivotMap[r.emp_id]) pivotMap[r.emp_id] = {}
             pivotMap[r.emp_id][r.date] = r
         })
 
-        const sortedDates = [...dateSet].sort()
         const employeeList = Object.entries(empMap).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
 
-        return { employees: employeeList, dates: sortedDates, pivot: pivotMap }
-    }, [filteredData])
+        const datesRange: string[] = []
+        if (fromDate && toDate) {
+            let current = new Date(fromDate)
+            const end = new Date(toDate)
+            while (current <= end) {
+                datesRange.push(formatDate(current))
+                current.setDate(current.getDate() + 1)
+            }
+        }
+
+        return { employees: employeeList, dates: datesRange, pivot: pivotMap }
+    }, [filteredData, fromDate, toDate])
 
     // Calculate per-employee statistics
     const employeeStats = useMemo(() => {
@@ -108,7 +137,7 @@ export default function FatigueManagementPage() {
                     const st = classifyShift(day.shift_start)
                     shiftTypes[st] = (shiftTypes[st] || 0) + 1
 
-                    if (detectFatigueViolation(prevShiftType, st)) violations++
+                    if (detectFatigueViolation(prevShiftType, st).hasViolation) violations++
                     prevShiftType = st
                 } else {
                     prevShiftType = null
@@ -164,16 +193,43 @@ export default function FatigueManagementPage() {
         return { avgHours, maxHours, maxCycleHours: Math.round(maxCycleHours * 10) / 10, totalViolations }
     }, [employeeStats, cycleData])
 
-    // Shift allocation pie
-    const shiftAllocation = useMemo(() => {
-        const totals: Record<string, number> = {}
-        employeeStats.forEach(e => {
-            Object.entries(e.shiftTypes).forEach(([t, c]) => {
-                totals[t] = (totals[t] || 0) + c
-            })
+    // Top 20 violators (Cycle > 48h)
+    const top20Violators = useMemo(() => {
+        return cycleData.map(emp => {
+            const maxCycle = emp.cycles.length > 0 ? Math.max(...emp.cycles.map(c => c.hours)) : 0
+            return { ...emp, maxCycle }
+        }).filter(e => e.maxCycle > 48).sort((a, b) => b.maxCycle - a.maxCycle).slice(0, 20)
+    }, [cycleData])
+
+    // Sorted Leaderboard
+    const sortedLeaderboard = useMemo(() => {
+        let result = employeeStats
+
+        if (leaderboardSearch) {
+            const s = leaderboardSearch.toLowerCase()
+            result = result.filter(e => e.name.toLowerCase().includes(s) || e.id.toLowerCase().includes(s))
+        }
+
+        return [...result].sort((a, b) => {
+            let valA: any = a[sortKey]
+            let valB: any = b[sortKey]
+            if (typeof valA === 'string') valA = valA.toLowerCase()
+            if (typeof valB === 'string') valB = valB.toLowerCase()
+
+            if (valA < valB) return sortAsc ? -1 : 1
+            if (valA > valB) return sortAsc ? 1 : -1
+            return 0
         })
-        return Object.entries(totals).map(([name, value]) => ({ name, value }))
-    }, [employeeStats])
+    }, [employeeStats, leaderboardSearch, sortKey, sortAsc])
+
+    function handleSort(key: typeof sortKey) {
+        if (sortKey === key) {
+            setSortAsc(!sortAsc)
+        } else {
+            setSortKey(key)
+            setSortAsc(false)
+        }
+    }
 
     // Cell style helper
     function getCellStyle(day: DailyRosterRow | undefined): string {
@@ -314,7 +370,8 @@ export default function FatigueManagementPage() {
                                                 {dates.map(d => {
                                                     const day = pivot[emp.id]?.[d]
                                                     const currentShift = day ? classifyShift(day.shift_start) : null
-                                                    const hasViolation = detectFatigueViolation(prevShift, currentShift)
+                                                    const violationResult = detectFatigueViolation(prevShift, currentShift)
+                                                    const hasViolation = violationResult.hasViolation
                                                     if (day && !NON_DUTY_CATEGORIES.includes(day.duty_category as (typeof NON_DUTY_CATEGORIES)[number])) {
                                                         prevShift = currentShift
                                                     } else {
@@ -324,7 +381,7 @@ export default function FatigueManagementPage() {
                                                         <td
                                                             key={d}
                                                             className={`p-1 border text-center ${hasViolation ? 'bg-red-300 text-red-900 font-bold' : getCellStyle(day)}`}
-                                                            title={day ? `${day.duty_category} | ${day.shift_start || ''}–${day.shift_end || ''}` : 'No data'}
+                                                            title={day ? `${day.duty_category} | ${day.shift_start || ''}–${day.shift_end || ''}${hasViolation ? `\n⚠️ ${violationResult.reason}` : ''}` : 'No data'}
                                                         >
                                                             {hasViolation && '⚠️'}
                                                             {day?.duty_code || day?.duty_code_raw || '—'}
@@ -477,26 +534,33 @@ export default function FatigueManagementPage() {
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Shift Allocation Pie */}
+                {/* Top 20 > 48h Weekly */}
                 <Card>
-                    <CardHeader><CardTitle className="text-base">Duty Type Allocation</CardTitle></CardHeader>
-                    <CardContent>
-                        {shiftAllocation.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={280}>
-                                <PieChart>
-                                    <Pie data={shiftAllocation} cx="50%" cy="50%" innerRadius={50} outerRadius={100} dataKey="value"
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        label={(entry: any) => `${entry.name ?? ''} (${(((entry.percent as number) ?? 0) * 100).toFixed(0)}%)`}>
-                                        {shiftAllocation.map((_, i) => {
-                                            const colorMap: Record<string, string> = { 'Early': '#f59e0b', 'General': '#3b82f6', 'Late': '#8b5cf6', 'Night': '#1e293b', 'No Time/Other': '#94a3b8' }
-                                            return <Cell key={i} fill={colorMap[shiftAllocation[i].name] || CHART_COLORS[i % CHART_COLORS.length]} />
-                                        })}
-                                    </Pie>
-                                    <Tooltip />
-                                    <Legend />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : <p className="text-sm text-slate-400 text-center py-10">No data</p>}
+                    <CardHeader><CardTitle className="text-base text-red-700 flex items-center gap-2"><ShieldAlert className="h-4 w-4"/> Top 20 Violators ({'>'} 48h Weekly Cycle)</CardTitle></CardHeader>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto max-h-[320px]">
+                            <table className="w-full text-xs">
+                                <thead className="sticky top-0 bg-slate-50 shadow-sm">
+                                    <tr className="border-b">
+                                        <th className="p-2 text-left">Emp ID</th>
+                                        <th className="p-2 text-left">Name</th>
+                                        <th className="p-2 text-right">Max Weekly Hrs</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {top20Violators.map(v => (
+                                        <tr key={v.id} className="border-b hover:bg-red-50">
+                                            <td className="p-2 font-mono">{v.id}</td>
+                                            <td className="p-2 font-medium">{v.name}</td>
+                                            <td className="p-2 text-right font-bold text-red-600">{v.maxCycle}h</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {top20Violators.length === 0 && (
+                                <p className="text-sm text-slate-400 text-center py-8">No employees exceeded 48 hours</p>
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
 
@@ -521,22 +585,40 @@ export default function FatigueManagementPage() {
 
             {/* Leaderboard Table */}
             <Card>
-                <CardHeader><CardTitle className="text-base flex items-center gap-2"><Award className="h-4 w-4" /> Leaderboard</CardTitle></CardHeader>
-                <CardContent>
+                <CardHeader className="flex flex-row items-center justify-between border-b pb-3">
+                    <CardTitle className="text-base flex items-center gap-2"><Award className="h-4 w-4" /> Leaderboard</CardTitle>
+                    <div className="relative w-64 mt-[-6px]">
+                        <Input
+                            placeholder="Search name or ID..."
+                            value={leaderboardSearch}
+                            onChange={e => setLeaderboardSearch(e.target.value)}
+                            className="bg-white"
+                        />
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
                     <div className="overflow-x-auto max-h-96">
                         <table className="w-full text-xs">
-                            <thead className="sticky top-0 bg-white">
-                                <tr className="border-b bg-slate-50">
-                                    <th className="text-left p-2">#</th>
-                                    <th className="text-left p-2">Name</th>
-                                    <th className="text-left p-2">Emp ID</th>
-                                    <th className="text-right p-2">Total Hours</th>
-                                    <th className="text-right p-2">Total Shifts</th>
-                                    <th className="text-right p-2">Violations</th>
+                            <thead className="sticky top-0 bg-slate-50 shadow-sm z-10">
+                                <tr className="border-b">
+                                    <th className="text-left p-3">#</th>
+                                    <th className="text-left p-3 cursor-pointer hover:bg-slate-100 uppercase text-[10px] tracking-wider" onClick={() => handleSort('name')}>
+                                        Name {sortKey === 'name' ? (sortAsc ? '↑' : '↓') : '↕'}
+                                    </th>
+                                    <th className="text-left p-3 uppercase text-[10px] tracking-wider">Emp ID</th>
+                                    <th className="text-right p-3 cursor-pointer hover:bg-slate-100 uppercase text-[10px] tracking-wider" onClick={() => handleSort('totalHours')}>
+                                        Total Hours {sortKey === 'totalHours' ? (sortAsc ? '↑' : '↓') : '↕'}
+                                    </th>
+                                    <th className="text-right p-3 cursor-pointer hover:bg-slate-100 uppercase text-[10px] tracking-wider" onClick={() => handleSort('totalShifts')}>
+                                        Total Shifts {sortKey === 'totalShifts' ? (sortAsc ? '↑' : '↓') : '↕'}
+                                    </th>
+                                    <th className="text-right p-3 cursor-pointer hover:bg-slate-100 uppercase text-[10px] tracking-wider" onClick={() => handleSort('violations')}>
+                                        Violations {sortKey === 'violations' ? (sortAsc ? '↑' : '↓') : '↕'}
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {[...employeeStats].sort((a, b) => b.totalHours - a.totalHours).map((e, i) => (
+                                {sortedLeaderboard.map((e, i) => (
                                     <tr key={e.id} className="border-b hover:bg-slate-50">
                                         <td className="p-2 font-semibold text-slate-400">{i + 1}</td>
                                         <td className="p-2">{e.name}</td>

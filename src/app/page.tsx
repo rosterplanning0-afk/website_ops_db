@@ -208,7 +208,7 @@ export default function LoginPage() {
                   type="email"
                   id="email"
                   name="email"
-                  placeholder="Employee ID"
+                  placeholder="Email ID"
                   required
                 />
               </div>

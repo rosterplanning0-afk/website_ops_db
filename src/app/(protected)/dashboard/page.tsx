@@ -11,6 +11,7 @@ import {
     TrendingUp, ClipboardCheck, Plus, Clock, BarChart3, UserCheck, MessageCircle
 } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
+import { RosterPlannerDashboardView } from '@/components/dashboard/roster-planner-view'
 
 export default async function DashboardPage() {
     const supabase = await createClient()
@@ -205,53 +206,7 @@ export default async function DashboardPage() {
     //  ROSTER PLANNER DASHBOARD
     // ═══════════════════════════
     if (role === 'roster_planners') {
-        return (
-            <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-slate-800">Roster Planner Dashboard</h2>
-
-                {/* KPI Card */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <Card className="flex flex-col">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent className="flex-1 flex flex-col">
-                            <div className="text-2xl font-bold">{dashboardTotalEmployees}</div>
-                            <p className="text-xs text-muted-foreground mb-4">Active in System</p>
-                            <div className="mt-auto space-y-2 max-h-[120px] overflow-y-auto pr-1">
-                                {Object.entries(designationBreakdown).map(([desig, counts]) => (
-                                    <div key={desig} className="text-xs border-t pt-2 mt-2 first:border-0 first:pt-0 first:mt-0">
-                                        <div className="flex justify-between font-semibold text-slate-700">
-                                            <span className="truncate pr-2">{desig}</span>
-                                            <span>{counts.total}</span>
-                                        </div>
-                                        <div className="flex gap-2 mt-0.5 text-slate-500 text-[10px]">
-                                            {counts.male > 0 && <span>M: {counts.male}</span>}
-                                            {counts.female > 0 && <span>F: {counts.female}</span>}
-                                            {counts.other > 0 && <span>O: {counts.other}</span>}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Quick Actions — roster_planner only */}
-                    <Card>
-                        <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
-                        <CardContent className="space-y-2">
-                            <Link href="/employees" className="block w-full p-3 hover:bg-slate-100 rounded-md border text-sm font-medium transition-colors">
-                                <Users className="h-4 w-4 inline mr-2" /> View Employees
-                            </Link>
-                            <Link href="/roster-analytics/trends" className="block w-full p-3 hover:bg-slate-100 rounded-md border text-sm font-medium transition-colors">
-                                <TrendingUp className="h-4 w-4 inline mr-2" /> Historical Trends
-                            </Link>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
-        )
+        return <RosterPlannerDashboardView />
     }
 
     // ═══════════════════════════

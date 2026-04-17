@@ -55,10 +55,18 @@ export function calcRestHours(
 export function detectFatigueViolation(
     prevShiftType: string | null,
     currentShiftType: string | null
-): boolean {
-    if (!prevShiftType || !currentShiftType) return false
+): { hasViolation: boolean; reason: string | null } {
+    if (!prevShiftType || !currentShiftType) return { hasViolation: false, reason: null }
     const risky = ['Late', 'Night']
-    return risky.includes(prevShiftType) && currentShiftType === 'Early'
+    
+    if (risky.includes(prevShiftType) && currentShiftType === 'Early') {
+        return {
+            hasViolation: true,
+            reason: `Rest Violation: ${currentShiftType} duty scheduled immediately after a ${prevShiftType} duty.`
+        }
+    }
+    
+    return { hasViolation: false, reason: null }
 }
 
 // Color mapping for duty categories

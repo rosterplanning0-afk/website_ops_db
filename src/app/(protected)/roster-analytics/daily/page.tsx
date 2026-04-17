@@ -31,32 +31,33 @@ export default function DailyOverviewPage() {
     const [data, setData] = useState<DailyRosterRow[]>([])
     const [loading, setLoading] = useState(true)
     const [crewTypes, setCrewTypes] = useState<string[]>([])
+    const [categoryFilter, setCategoryFilter] = useState<string>('all')
     const [userRole, setUserRole] = useState<string>('')
     const [userDept, setUserDept] = useState<string>('')
+    const [userInfoLoaded, setUserInfoLoaded] = useState(false)
     const supabase = createClient()
 
     useEffect(() => {
         async function fetchUserInfo() {
             const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
-            const { data: profile } = await supabase.from('users').select('role, employee_id').eq('id', user.id).single()
-            if (profile?.employee_id) {
-                const { data: empInfo } = await supabase.from('employees').select('role, department').eq('employee_id', profile.employee_id).single()
-                if (empInfo) {
-                    setUserRole(empInfo.role?.toLowerCase() || profile.role?.toLowerCase() || '')
-                    setUserDept(empInfo.department || '')
+            if (user) {
+                const { data: profile } = await supabase.from('users').select('role, employee_id').eq('id', user.id).single()
+                if (profile?.employee_id) {
+                    const { data: empInfo } = await supabase.from('employees').select('role, department').eq('employee_id', profile.employee_id).single()
+                    setUserRole(empInfo?.role?.toLowerCase() || profile.role?.toLowerCase() || '')
+                    setUserDept(empInfo?.department || '')
+                } else if (profile) {
+                    setUserRole(profile.role?.toLowerCase() || '')
                 }
-            } else if (profile) {
-                setUserRole(profile.role?.toLowerCase() || '')
             }
+            setUserInfoLoaded(true)
         }
         fetchUserInfo()
     }, [])
 
     useEffect(() => {
         async function fetchData() {
-            if (!userRole && loading) return // Wait for role info unless initial load
+            if (!userInfoLoaded) return
             setLoading(true)
 
             let query = supabase
@@ -83,7 +84,7 @@ export default function DailyOverviewPage() {
             setLoading(false)
         }
         fetchData()
-    }, [selectedDate, userRole, userDept])
+    }, [selectedDate, userRole, userDept, userInfoLoaded])
 
     const filteredData = useMemo(() => {
         let result = data
@@ -101,6 +102,16 @@ export default function DailyOverviewPage() {
     }, [data, crewFilter, searchTerm])
 
     const kpis = useMemo(() => calculateKPIs(filteredData), [filteredData])
+
+    const categories = useMemo(() => {
+        const cats = new Set(filteredData.map(r => r.duty_category).filter(Boolean))
+        return Array.from(cats).sort()
+    }, [filteredData])
+
+    const tableData = useMemo(() => {
+        if (categoryFilter === 'all') return filteredData;
+        return filteredData.filter(r => r.duty_category === categoryFilter)
+    }, [filteredData, categoryFilter])
 
     // Shift distribution data
     const shiftDistribution = useMemo(() => {
@@ -145,31 +156,58 @@ export default function DailyOverviewPage() {
 
     // Duty breakdown table data
     const dutyTable = useMemo(() => {
-        const groups: Record<string, { category: string; code: string; count: number }[]> = {
+        const groups: Record<string, { category: string; count: number }[]> = {
             'Active Duty': [],
             'Leaves': [],
             'Other': [],
         }
-        const codeMap: Record<string, { category: string; count: number }> = {}
+        const catMap: Record<string, number> = {}
         filteredData.forEach(r => {
-            const key = r.duty_code || r.duty_code_raw || 'N/A'
-            if (!codeMap[key]) codeMap[key] = { category: r.duty_category, count: 0 }
-            codeMap[key].count++
+            let key = r.duty_category || 'Uncategorized'
+            if (key === 'Uncategorized') {
+                key = `Uncategorized (${r.duty_code || r.duty_code_raw || 'N/A'})`
+            }
+            catMap[key] = (catMap[key] || 0) + 1
         })
-        Object.entries(codeMap).forEach(([code, info]) => {
-            const entry = { category: info.category, code, count: info.count }
-            if (NON_DUTY_CATEGORIES.includes(info.category as (typeof NON_DUTY_CATEGORIES)[number])) {
-                if (LEAVE_TYPES.includes(info.category as (typeof LEAVE_TYPES)[number])) {
+        Object.entries(catMap).forEach(([category, count]) => {
+            const entry = { category, count }
+            const baseCategory = category.split(' (')[0]
+
+            if (NON_DUTY_CATEGORIES.includes(baseCategory as (typeof NON_DUTY_CATEGORIES)[number])) {
+                if (LEAVE_TYPES.includes(baseCategory as (typeof LEAVE_TYPES)[number])) {
                     groups['Leaves'].push(entry)
-                } else {
+                } else if (baseCategory !== 'Uncategorized') {
                     groups['Other'].push(entry)
+                } else {
+                    groups['Active Duty'].push(entry)
                 }
             } else {
                 groups['Active Duty'].push(entry)
             }
         })
-        // Sort each group by count descending
-        Object.values(groups).forEach(arr => arr.sort((a, b) => b.count - a.count))
+
+        // Custom Sort for Active Duty: RRTS -> MRTS -> General -> Training -> Others
+        const getSortWeight = (cat: string) => {
+            const c = cat.toUpperCase()
+            if (c.includes('RRTS')) return 1
+            if (c.includes('MRTS')) return 2
+            if (c.includes('GENERAL')) return 3
+            if (c.includes('TRAINING')) return 4
+            return 5
+        }
+
+        groups['Active Duty'].sort((a, b) => {
+            const wA = getSortWeight(a.category)
+            const wB = getSortWeight(b.category)
+            if (wA !== wB) return wA - wB
+            return b.count - a.count
+        })
+
+        Object.values(groups).forEach(arr => {
+            if (arr !== groups['Active Duty']) {
+                arr.sort((a, b) => b.count - a.count)
+            }
+        })
         return groups
     }, [filteredData])
 
@@ -180,6 +218,9 @@ export default function DailyOverviewPage() {
             </div>
         )
     }
+
+    const weeklyOffTarget = Math.round(kpis.totalRostered / 7)
+    const maxLeavesTarget = Math.floor(kpis.totalRostered * 0.12)
 
     return (
         <div className="space-y-6">
@@ -338,78 +379,109 @@ export default function DailyOverviewPage() {
             )}
 
             {/* Duty Breakdown Table */}
-            <Card>
-                <CardHeader><CardTitle className="text-base">Duty Code Breakdown</CardTitle></CardHeader>
-                <CardContent>
+            <Card className="flex flex-col">
+                <CardHeader className="border-b"><CardTitle className="text-base">Duty Category Breakdown</CardTitle></CardHeader>
+                <CardContent className="pt-6 flex-1">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {Object.entries(dutyTable).map(([group, items]) => (
                             <div key={group}>
-                                <h3 className="font-semibold text-sm text-slate-600 mb-2 border-b pb-1">
-                                    {group} ({items.reduce((s, i) => s + i.count, 0)})
+                                <h3 className="font-bold text-xs text-slate-400 uppercase mb-3 border-b pb-1 tracking-wider flex justify-between">
+                                    {group} <span>{items.reduce((s, i) => s + i.count, 0)}</span>
                                 </h3>
-                                <div className="space-y-1 max-h-60 overflow-y-auto">
+                                <div className="space-y-1.5 max-h-72 overflow-y-auto pr-2">
                                     {items.map((item, i) => (
-                                        <div key={i} className="flex justify-between items-center text-xs px-2 py-1 rounded hover:bg-slate-50">
-                                            <span className="font-mono">{item.code}</span>
-                                            <div className="flex items-center gap-2">
-                                                <span className={`px-1.5 py-0.5 rounded text-[10px] ${getCategoryColor(item.category)}`}>
-                                                    {item.category}
-                                                </span>
-                                                <span className="font-semibold">{item.count}</span>
-                                            </div>
+                                        <div key={i} className="flex justify-between items-center text-xs p-2 rounded-md bg-slate-50 hover:bg-slate-100 transition-colors">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getCategoryColor(item.category.split(' (')[0])}`}>
+                                                {item.category}
+                                            </span>
+                                            <span className="font-bold text-slate-800">{item.count}</span>
                                         </div>
                                     ))}
-                                    {items.length === 0 && <p className="text-xs text-slate-400">None</p>}
+                                    {items.length === 0 && <p className="text-xs text-slate-400 italic">None</p>}
                                 </div>
+                                {group === 'Active Duty' && items.length > 0 && (
+                                    <div className="mt-4 pt-2 border-t flex justify-between items-center px-2">
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase">Total Active</span>
+                                        <span className="text-sm font-black text-blue-700">{items.reduce((s, i) => s + i.count, 0)}</span>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
                 </CardContent>
+                <div className="p-4 bg-slate-50 border-t flex flex-wrap gap-8 justify-center items-center rounded-b-lg">
+                    <div className="text-center">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Max Leaves (Target)</p>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xl font-black text-slate-700">{maxLeavesTarget}</span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${kpis.leaves > maxLeavesTarget ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                Current: {kpis.leaves}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="text-center">
+                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Weekly Off Target</p>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xl font-black text-slate-700">{weeklyOffTarget}</span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${Math.abs(kpis.weeklyOff - weeklyOffTarget) > 5 ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
+                                Current: {kpis.weeklyOff}
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </Card>
 
             {/* Roster Table */}
             <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">Roster Details ({filteredData.length} records)</CardTitle>
+                <CardHeader className="border-b flex flex-row items-center justify-between">
+                    <CardTitle className="text-base">Roster Details ({tableData.length} records)</CardTitle>
+                    <select
+                        className="border rounded-md px-2 py-1 text-xs font-normal normal-case bg-white shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={categoryFilter}
+                        onChange={e => setCategoryFilter(e.target.value)}
+                    >
+                        <option value="all">All Categories</option>
+                        {categories.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                        ))}
+                    </select>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                             <thead>
                                 <tr className="border-b bg-slate-50">
-                                    <th className="text-left p-2 font-semibold">Emp ID</th>
-                                    <th className="text-left p-2 font-semibold">Name</th>
-                                    <th className="text-left p-2 font-semibold">Crew Type</th>
-                                    <th className="text-left p-2 font-semibold">Duty Code</th>
-                                    <th className="text-left p-2 font-semibold">Category</th>
-                                    <th className="text-left p-2 font-semibold">Shift</th>
-                                    <th className="text-left p-2 font-semibold">Time</th>
+                                    <th className="text-left p-3 font-semibold text-slate-600 uppercase">Emp ID</th>
+                                    <th className="text-left p-3 font-semibold text-slate-600 uppercase">Name</th>
+                                    <th className="text-left p-3 font-semibold text-slate-600 uppercase">Duty Code</th>
+                                    <th className="text-left p-3 font-semibold text-slate-600 uppercase">Category</th>
+                                    <th className="text-left p-3 font-semibold text-slate-600 uppercase">Shift</th>
+                                    <th className="text-left p-3 font-semibold text-slate-600 uppercase">Time</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredData.slice(0, 200).map((r, i) => (
-                                    <tr key={i} className="border-b hover:bg-slate-50">
-                                        <td className="p-2 font-mono">{r.emp_id}</td>
-                                        <td className="p-2">{r.name}</td>
-                                        <td className="p-2">{r.crew_type}</td>
-                                        <td className="p-2 font-mono">{r.duty_code || r.duty_code_raw}</td>
-                                        <td className="p-2">
-                                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${getCategoryColor(r.duty_category)}`}>
+                                {tableData.slice(0, 200).map((r, i) => (
+                                    <tr key={i} className="border-b hover:bg-slate-50 transition-colors">
+                                        <td className="p-3 font-mono text-slate-500">{r.emp_id}</td>
+                                        <td className="p-3 font-medium text-slate-800">{r.name}</td>
+                                        <td className="p-3"><code className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-600">{r.duty_code || r.duty_code_raw}</code></td>
+                                        <td className="p-3">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getCategoryColor(r.duty_category)}`}>
                                                 {r.duty_category}
                                             </span>
                                         </td>
-                                        <td className="p-2">{classifyShift(r.shift_start)}</td>
-                                        <td className="p-2 font-mono">
-                                            {r.shift_start && r.shift_end ? `${r.shift_start}–${r.shift_end}` : '—'}
+                                        <td className="p-3 text-slate-600">{classifyShift(r.shift_start)}</td>
+                                        <td className="p-3 font-mono text-slate-500">
+                                            {r.shift_start && r.shift_end ? `${r.shift_start}–${r.shift_end}` : <span className="text-slate-300">—</span>}
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                        {filteredData.length > 200 && (
-                            <p className="text-xs text-slate-400 text-center mt-2">Showing first 200 of {filteredData.length} records</p>
+                        {tableData.length > 200 && (
+                            <p className="text-xs text-slate-400 text-center mt-2">Showing first 200 of {tableData.length} records</p>
                         )}
-                        {filteredData.length === 0 && (
+                        {tableData.length === 0 && (
                             <p className="text-sm text-slate-400 text-center py-8">No roster data found for {selectedDate}</p>
                         )}
                     </div>
