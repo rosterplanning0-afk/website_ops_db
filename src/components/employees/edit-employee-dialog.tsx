@@ -33,9 +33,10 @@ interface EditEmployeeDialogProps {
     onOpenChange: (open: boolean) => void
     onSuccess: () => void
     isAdmin?: boolean
+    userDelegations?: any[]
 }
 
-export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, isAdmin = false }: EditEmployeeDialogProps) {
+export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, isAdmin = false, userDelegations = [] }: EditEmployeeDialogProps) {
     const [formData, setFormData] = useState<Partial<Employee>>({
         name: '',
         designation: '',
@@ -49,6 +50,29 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, is
         date_relived: ''
     })
     const [loading, setLoading] = useState(false)
+    const [hasAccess, setHasAccess] = useState(true)
+
+    useEffect(() => {
+        if (!employee) return
+        
+        if (isAdmin) {
+            setHasAccess(true)
+            return
+        }
+
+        // Roster Planner Access Check
+        if (userDelegations.length > 0) {
+            const isAllowed = userDelegations.some(del => {
+                const deptMatch = !del.department_scope || del.department_scope === employee.department
+                const desigMatch = !del.designation_scope || del.designation_scope.includes(employee.designation)
+                return deptMatch && desigMatch
+            })
+            setHasAccess(isAllowed)
+        } else if (!isAdmin) {
+            // If no delegations and not admin, typically shouldn't even see the edit button, but for safety:
+            setHasAccess(false)
+        }
+    }, [employee, isAdmin, userDelegations])
 
     useEffect(() => {
         if (employee) {
@@ -119,6 +143,11 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, is
             <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Edit Employee: {employee?.name} ({employee?.employee_id})</DialogTitle>
+                    {!hasAccess && !loading && (
+                        <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-2 rounded-md text-sm mt-2">
+                            <strong>Notice:</strong> You do not have delegated rights to edit this employee. All fields are read-only.
+                        </div>
+                    )}
                 </DialogHeader>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4">
                     <div className="grid gap-2">
@@ -131,6 +160,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, is
                             id="name" 
                             value={formData.name} 
                             onChange={e => handleChange('name', e.target.value)} 
+                            disabled={!hasAccess}
                         />
                     </div>
                     <div className="grid gap-2">
@@ -139,6 +169,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, is
                             id="department" 
                             value={formData.department} 
                             onChange={e => handleChange('department', e.target.value)} 
+                            disabled={!hasAccess}
                         />
                     </div>
                     <div className="grid gap-2">
@@ -147,6 +178,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, is
                             id="designation" 
                             value={formData.designation} 
                             onChange={e => handleChange('designation', e.target.value)} 
+                            disabled={!hasAccess}
                         />
                     </div>
                     <div className="grid gap-2">
@@ -155,7 +187,8 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, is
                             id="gender"
                             value={formData.gender}
                             onChange={e => handleChange('gender', e.target.value)}
-                            className="w-full border border-input rounded-md p-2 text-sm bg-white"
+                            disabled={!hasAccess}
+                            className={`w-full border border-input rounded-md p-2 text-sm ${!hasAccess ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'}`}
                         >
                             <option value="">Select Gender</option>
                             <option value="Male">Male</option>
@@ -191,6 +224,7 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, is
                             id="manager_id" 
                             value={formData.manager_id} 
                             onChange={e => handleChange('manager_id', e.target.value)} 
+                            disabled={!hasAccess}
                         />
                     </div>
                     <div className="grid gap-2">
@@ -199,50 +233,54 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, is
                             id="status"
                             value={formData.status}
                             onChange={e => handleChange('status', e.target.value)}
-                            className="w-full border border-input rounded-md p-2 text-sm bg-white"
+                            disabled={!hasAccess}
+                            className={`w-full border border-input rounded-md p-2 text-sm ${!hasAccess ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'}`}
                         >
                             <option value="Active">Active</option>
                             <option value="Notice Period">Notice Period</option>
                             <option value="Relieved">Relieved</option>
                         </select>
                     </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="date_joined">Date Joined</Label>
-                        <Input 
-                            id="date_joined" 
-                            type="date" 
-                            value={formData.date_joined} 
-                            onChange={e => handleChange('date_joined', e.target.value)} 
-                        />
-                    </div>
-                    {(formData.status === 'Notice Period' || formData.status === 'Relieved') && (
                         <div className="grid gap-2">
-                            <Label htmlFor="date_resigned">Date Resigned</Label>
+                            <Label htmlFor="date_joined">Date Joined</Label>
                             <Input 
-                                id="date_resigned" 
+                                id="date_joined" 
                                 type="date" 
-                                value={formData.date_resigned} 
-                                onChange={e => handleChange('date_resigned', e.target.value)} 
+                                value={formData.date_joined} 
+                                onChange={e => handleChange('date_joined', e.target.value)} 
+                                disabled={!hasAccess}
                             />
                         </div>
-                    )}
-                    {formData.status === 'Relieved' && (
-                        <div className="grid gap-2">
-                            <Label htmlFor="date_relived">Date Relieved</Label>
-                            <Input 
-                                id="date_relived" 
-                                type="date" 
-                                value={formData.date_relived} 
-                                onChange={e => handleChange('date_relived', e.target.value)} 
-                            />
-                        </div>
-                    )}
+                        {(formData.status === 'Notice Period' || formData.status === 'Relieved') && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="date_resigned">Date Resigned</Label>
+                                <Input 
+                                    id="date_resigned" 
+                                    type="date" 
+                                    value={formData.date_resigned} 
+                                    onChange={e => handleChange('date_resigned', e.target.value)} 
+                                    disabled={!hasAccess}
+                                />
+                            </div>
+                        )}
+                        {formData.status === 'Relieved' && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="date_relived">Date Relieved</Label>
+                                <Input 
+                                    id="date_relived" 
+                                    type="date" 
+                                    value={formData.date_relived} 
+                                    onChange={e => handleChange('date_relived', e.target.value)} 
+                                    disabled={!hasAccess}
+                                />
+                            </div>
+                        )}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
                         Cancel
                     </Button>
-                    <Button onClick={handleUpdate} disabled={loading} className="bg-red-600 hover:bg-red-700">
+                    <Button onClick={handleUpdate} disabled={loading || !hasAccess} className="bg-red-600 hover:bg-red-700">
                         {loading ? 'Saving...' : 'Save Changes'}
                     </Button>
                 </DialogFooter>

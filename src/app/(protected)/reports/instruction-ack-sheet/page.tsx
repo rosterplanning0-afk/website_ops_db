@@ -31,17 +31,52 @@ export default function InstructionAckSheetPage() {
     const [initialLoading, setInitialLoading] = useState(true)
     const [dataLoading, setDataLoading] = useState(false)
 
+    const [userContext, setUserContext] = useState({ role: '', dept: '' })
+
     useEffect(() => {
         async function loadInitial() {
             const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+
+            let userRole = 'employee'
+            let userDept = ''
+
+            if (user) {
+                const { data: profile } = await supabase.from('users').select('role, employee_id').eq('id', user.id).single()
+                if (profile?.employee_id) {
+                    const { data: empInfo } = await supabase.from('employees').select('role, department').eq('employee_id', profile.employee_id).single()
+                    userRole = (empInfo?.role || profile.role || '').toLowerCase()
+                    userDept = empInfo?.department || ''
+                } else if (profile) {
+                    userRole = (profile.role || '').toLowerCase()
+                }
+            }
+
+            setUserContext({ role: userRole, dept: userDept })
+
+            let allowedDesigs = new Set<string>()
+            if (userRole !== 'admin' && userDept) {
+                const { data: dData } = await supabase.from('employees').select('designation').eq('department', userDept)
+                dData?.forEach(d => { if (d.designation) allowedDesigs.add(d.designation) })
+            }
+
             const { data } = await supabase
                 .from('instructions')
-                .select('id, title, created_at')
+                .select('id, title, created_at, instruction_designation_assignments(designation)')
                 .eq('is_active', true)
                 .order('created_at', { ascending: false })
 
-            setInstructions(data || [])
-            if (data?.[0]) setSelectedId(data[0].id)
+            let filtered = data || []
+            if (userRole !== 'admin' && allowedDesigs.size > 0) {
+                filtered = filtered.filter(inst => {
+                    return inst.instruction_designation_assignments?.some(a => 
+                        a.designation === 'All Staff' || allowedDesigs.has(a.designation)
+                    )
+                })
+            }
+
+            setInstructions(filtered)
+            if (filtered?.[0]) setSelectedId(filtered[0].id)
             setInitialLoading(false)
         }
         loadInitial()
@@ -72,9 +107,15 @@ export default function InstructionAckSheetPage() {
 
             // 3. Fetch employees with those designations
             let empsQuery = supabase.from('employees').select('employee_id, name, designation').eq('status', 'Active')
-            if (designations.length > 0) {
+            
+            if (designations.length > 0 && !designations.includes('All Staff')) {
                 empsQuery = empsQuery.in('designation', designations)
             }
+
+            if (userContext.role !== 'admin' && userContext.dept) {
+                empsQuery = empsQuery.eq('department', userContext.dept)
+            }
+
             const { data: emps } = await empsQuery.order('name')
 
             // 4. Fetch acknowledgements for this instruction

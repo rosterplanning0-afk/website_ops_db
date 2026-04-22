@@ -47,14 +47,12 @@ export default function InstructionAckPage() {
                 }
             }
 
-            // Fetch instructions
+            // Fetch instructions and assignments together for filtering
             const { data: instData } = await supabase
                 .from('instructions')
-                .select('id, title')
+                .select('id, title, instruction_designation_assignments(designation)')
                 .eq('is_active', true)
                 .order('created_at', { ascending: false })
-
-            setInstructions(instData || [])
 
             // 2. Fetch assignments (who needs to see what)
             const { data: assignments } = await supabase
@@ -78,8 +76,22 @@ export default function InstructionAckPage() {
                 .select('id, instruction_id, employee_id, acknowledged_at')
 
             // Build data maps
-            const instMap = new Map((instData || []).map(i => [i.id, i.title]))
             const empMap = new Map((activeEmployees || []).map(e => [e.employee_id, e]))
+            
+            // Filter instructions to only show those relevant to this department's designations
+            let filteredInstData = instData || []
+            if (userRole !== 'admin' && userDept && userDept !== 'all') {
+                const allowedDesigs = new Set((activeEmployees || []).map(e => e.designation))
+                filteredInstData = filteredInstData.filter(inst => {
+                    return inst.instruction_designation_assignments?.some(a => 
+                        a.designation === 'All Staff' || allowedDesigs.has(a.designation)
+                    )
+                })
+            }
+
+            setInstructions(filteredInstData.map(i => ({ id: i.id, title: i.title })))
+
+            const instMap = new Map(filteredInstData.map(i => [i.id, i.title]))
 
             // Ensure we have employee details for those who acknowledged but might be inactive now
             const ackEmpIds = ackData?.map(a => a.employee_id).filter(Boolean) || []
@@ -109,11 +121,14 @@ export default function InstructionAckPage() {
             }
 
             // B. Compute pending users by matching active employees to instruction assignments
-            if (instData && assignments && activeEmployees) {
-                instData.forEach(inst => {
+            if (filteredInstData && assignments && activeEmployees) {
+                filteredInstData.forEach(inst => {
                     const targetDesigs = assignments.filter(a => a.instruction_id === inst.id).map(a => a.designation)
                     if (targetDesigs.length > 0) {
-                        const targetEmps = activeEmployees.filter(e => targetDesigs.includes(e.designation))
+                        let targetEmps = activeEmployees
+                        if (!targetDesigs.includes('All Staff')) {
+                            targetEmps = activeEmployees.filter(e => targetDesigs.includes(e.designation))
+                        }
                         targetEmps.forEach(emp => {
                             const ackKey = `${inst.id}_${emp.employee_id}`
                             if (!actualAckSet.has(ackKey)) {

@@ -22,7 +22,7 @@ interface DelegationRecord {
     id: string
     granted_to: string
     department_scope: string | null
-    designation_scope: string | null
+    designation_scope: string[] | null
     user_name: string
     user_role: string
 }
@@ -37,11 +37,12 @@ export default function DelegationSettingsPage() {
     const [delegations, setDelegations] = useState<DelegationRecord[]>([])
     const [departments, setDepartments] = useState<string[]>([])
     const [designations, setDesignations] = useState<string[]>([])
+    const [deptToDesigMap, setDeptToDesigMap] = useState<Record<string, string[]>>({})
     
     // Form Input
     const [selectedUserId, setSelectedUserId] = useState('')
     const [deptScope, setDeptScope] = useState('')
-    const [desigScope, setDesigScope] = useState('')
+    const [desigScope, setDesigScope] = useState<string[]>([])
     const [saving, setSaving] = useState(false)
     const [searchUser, setSearchUser] = useState('')
 
@@ -70,12 +71,25 @@ export default function DelegationSettingsPage() {
         const { data: emps } = await supabase.from('employees').select('department, designation')
         const deptSet = new Set<string>()
         const desigSet = new Set<string>()
+        const mapping: Record<string, Set<string>> = {}
+
         emps?.forEach(e => {
-            if (e.department) deptSet.add(e.department)
+            if (e.department) {
+                deptSet.add(e.department)
+                if (!mapping[e.department]) mapping[e.department] = new Set()
+                if (e.designation) mapping[e.department].add(e.designation)
+            }
             if (e.designation) desigSet.add(e.designation)
         })
+
+        const finalMapping: Record<string, string[]> = {}
+        Object.keys(mapping).forEach(d => {
+            finalMapping[d] = Array.from(mapping[d]).sort()
+        })
+
         setDepartments(Array.from(deptSet).sort())
         setDesignations(Array.from(desigSet).sort())
+        setDeptToDesigMap(finalMapping)
 
         // Load users to delegate to
         const { data: userData } = await supabase.from('users').select('id, full_name, role, employee_id').order('full_name')
@@ -109,13 +123,13 @@ export default function DelegationSettingsPage() {
         const { error } = await supabase.from('manager_assignment_rights').insert({
             granted_to: selectedUserId,
             department_scope: deptScope || null,
-            designation_scope: desigScope || null
+            designation_scope: desigScope.length > 0 ? desigScope : null
         })
 
         if (!error) {
             setSelectedUserId('')
             setDeptScope('')
-            setDesigScope('')
+            setDesigScope([])
             setSearchUser('')
             await loadData()
         } else {
@@ -151,6 +165,12 @@ export default function DelegationSettingsPage() {
         ((u.full_name || '').toLowerCase().includes(searchUser.toLowerCase()) || 
          (u.employee_id || '').toLowerCase().includes(searchUser.toLowerCase()))
     )
+
+    const toggleDesignation = (d: string) => {
+        setDesigScope(prev => 
+            prev.includes(d) ? prev.filter(item => item !== d) : [...prev, d]
+        )
+    }
 
     if (loading) return <div className="p-8 text-center">Loading security settings...</div>
 
@@ -213,14 +233,32 @@ export default function DelegationSettingsPage() {
 
                             <div className="space-y-2">
                                 <Label>Designation Scope (Optional)</Label>
-                                <select 
-                                    className="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-slate-700"
-                                    value={desigScope}
-                                    onChange={e => setDesigScope(e.target.value)}
-                                >
-                                    <option value="">-- All Designations --</option>
-                                    {designations.map(d => <option key={d} value={d}>{d}</option>)}
-                                </select>
+                                <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-white">
+                                    <div className="flex items-center gap-2 pb-2 border-b mb-2">
+                                        <input 
+                                            type="checkbox" 
+                                            id="all-desig"
+                                            checked={desigScope.length === 0}
+                                            onChange={() => setDesigScope([])}
+                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                                        />
+                                        <label htmlFor="all-desig" className="text-sm font-medium text-slate-700 italic">Universal (All Designations)</label>
+                                    </div>
+                                    {(!deptScope ? designations : (deptToDesigMap[deptScope] || []))
+                                        .map(d => (
+                                            <div key={d} className="flex items-center gap-2">
+                                                <input 
+                                                    type="checkbox" 
+                                                    id={`desig-${d}`}
+                                                    checked={desigScope.includes(d)}
+                                                    onChange={() => toggleDesignation(d)}
+                                                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                                                />
+                                                <label htmlFor={`desig-${d}`} className="text-sm text-slate-700">{d}</label>
+                                            </div>
+                                        ))
+                                    }
+                                </div>
                             </div>
 
                             <div className="pt-2">
@@ -263,7 +301,17 @@ export default function DelegationSettingsPage() {
                                                     {del.department_scope ? <span className="text-blue-600 font-semibold">{del.department_scope}</span> : <span className="text-muted-foreground italic">Universal</span>}
                                                 </TableCell>
                                                 <TableCell className="text-sm">
-                                                    {del.designation_scope ? <span className="text-amber-600 font-semibold">{del.designation_scope}</span> : <span className="text-muted-foreground italic">Universal</span>}
+                                                    {del.designation_scope && del.designation_scope.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {del.designation_scope.map(d => (
+                                                                <span key={d} className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                                                                    {d}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted-foreground italic">Universal</span>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <Button variant="ghost" size="sm" onClick={() => handleRevoke(del.id)} className="text-red-500 hover:bg-red-50 hover:text-red-700 h-8 px-2">

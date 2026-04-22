@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Users, Search, Filter, Edit } from 'lucide-react'
+import { Users, Search, Filter, Edit, Download } from 'lucide-react'
 import { EditEmployeeDialog } from '@/components/employees/edit-employee-dialog'
 
 export default function EmployeeListPage() {
@@ -14,6 +14,8 @@ export default function EmployeeListPage() {
     const [loading, setLoading] = useState(true)
     const [canEdit, setCanEdit] = useState(false)
     const [isAdmin, setIsAdmin] = useState(false)
+    const [userRoleState, setUserRoleState] = useState<string>('employee')
+    const [userDelegations, setUserDelegations] = useState<any[]>([])
     const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
 
@@ -43,8 +45,18 @@ export default function EmployeeListPage() {
                 }
             }
 
+            setUserRoleState(userRole)
             setCanEdit(userRole === 'admin' || userRole === 'roster_planners')
             setIsAdmin(userRole === 'admin')
+
+            // Fetch delegations for roster planners
+            if (userRole === 'roster_planners') {
+                const { data: delData } = await supabase
+                    .from('manager_assignment_rights')
+                    .select('department_scope, designation_scope')
+                    .eq('granted_to', user.id)
+                setUserDelegations(delData || [])
+            }
 
             let query = supabase.from('employees').select('*').order('name', { ascending: true })
             
@@ -85,6 +97,39 @@ export default function EmployeeListPage() {
         const matchStatus = selectedStatus === 'all' || (emp.status || 'Active') === selectedStatus
         return matchId && matchDesig && matchDept && matchStatus
     })
+
+    const downloadCSV = () => {
+        if (!filteredEmployees || filteredEmployees.length === 0) return
+
+        const headers = ['Employee ID', 'Name', 'Designation', 'Department', 'Gender', 'Status', 'Date Joined', 'Date Resigned', 'Date Relieved']
+        const csvRows = [
+            headers.join(','),
+            ...filteredEmployees.map(emp => {
+                return [
+                    `"${emp.employee_id || ''}"`,
+                    `"${(emp.name || '').replace(/"/g, '""')}"`,
+                    `"${emp.designation || ''}"`,
+                    `"${emp.department || ''}"`,
+                    `"${emp.gender || ''}"`,
+                    `"${emp.status || 'Active'}"`,
+                    `"${emp.date_joined || ''}"`,
+                    `"${emp.date_resigned || ''}"`,
+                    `"${emp.date_relived || ''}"`
+                ].join(',')
+            })
+        ]
+
+        const csvString = csvRows.join('\n')
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.setAttribute('href', url)
+        link.setAttribute('download', `employee_list_${new Date().toISOString().split('T')[0]}.csv`)
+        link.style.visibility = 'hidden'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+    }
 
     return (
         <div className="space-y-6">
@@ -152,7 +197,15 @@ export default function EmployeeListPage() {
                 <CardHeader>
                     <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> All Employees</CardTitle>
-                        <span className="text-sm font-medium bg-red-100 text-red-800 px-3 py-1 rounded-full">{filteredEmployees.length} Results</span>
+                        <div className="flex items-center gap-4">
+                            {userRoleState !== 'employee' && (
+                                <Button variant="outline" size="sm" onClick={downloadCSV} className="flex items-center gap-2">
+                                    <Download className="h-4 w-4" />
+                                    Download CSV
+                                </Button>
+                            )}
+                            <span className="text-sm font-medium bg-red-100 text-red-800 px-3 py-1 rounded-full">{filteredEmployees.length} Results</span>
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -215,6 +268,7 @@ export default function EmployeeListPage() {
                 onOpenChange={setIsDialogOpen}
                 onSuccess={refreshData}
                 isAdmin={isAdmin}
+                userDelegations={userDelegations}
             />
         </div>
     )

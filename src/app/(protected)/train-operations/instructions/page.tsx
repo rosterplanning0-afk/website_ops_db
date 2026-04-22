@@ -34,7 +34,7 @@ export default async function InstructionMasterPage() {
         }
     }
 
-    if (!availableDesignations.includes('All Staff')) {
+    if (userRole === 'admin' && !availableDesignations.includes('All Staff')) {
         availableDesignations.push('All Staff')
     }
 
@@ -43,5 +43,23 @@ export default async function InstructionMasterPage() {
         .select('*, instruction_designation_assignments(designation)')
         .order('created_at', { ascending: false })
 
-    return <InstructionMasterClient initialInstructions={instructions || []} canCreate={canCreate} availableDesignations={availableDesignations} />
+    let filteredInstructions = instructions || []
+    if (userRole !== 'admin' && availableDesignations.length > 0) {
+        filteredInstructions = filteredInstructions.filter((inst) => {
+            return inst.instruction_designation_assignments?.some(a => 
+                a.designation === 'All Staff' || availableDesignations.includes(a.designation)
+            )
+        })
+    }
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-slate-800 border-b pb-2">Train Operations – Manage Instructions</h2>
+            <InstructionMasterClient 
+                initialInstructions={filteredInstructions} 
+                canCreate={canCreate} 
+                availableDesignations={availableDesignations} 
+            />
+        </div>
+    )
 }
