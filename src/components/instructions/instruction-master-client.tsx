@@ -20,6 +20,8 @@ interface Instruction {
     created_at: string
     created_by: string | null
     valid_until: string | null
+    file_id?: string | null
+    file_url?: string | null
     instruction_designation_assignments?: { designation: string }[]
 }
 
@@ -44,6 +46,7 @@ export default function InstructionMasterClient({
     const [priority, setPriority] = useState('Normal')
     const [validUntil, setValidUntil] = useState('')
     const [selectedDesignations, setSelectedDesignations] = useState<string[]>([])
+    const [file, setFile] = useState<File | null>(null)
 
     const [errorMsg, setErrorMsg] = useState('')
 
@@ -55,21 +58,28 @@ export default function InstructionMasterClient({
 
     async function handleSave() {
         if (!title.trim() || !content.trim() || selectedDesignations.length === 0) return
+        if (content.trim().length < 10) {
+            setErrorMsg('Instruction details must be at least 10 characters.')
+            return
+        }
         setSaving(true)
         setErrorMsg('')
 
         try {
+            const formData = new FormData()
+            formData.append('title', title)
+            formData.append('content', content)
+            formData.append('priority', priority)
+            formData.append('valid_until', validUntil || '')
+            formData.append('assigned_designations', JSON.stringify(selectedDesignations))
+            formData.append('is_active', 'true')
+            if (file) {
+                formData.append('file', file)
+            }
+
             const res = await fetch('/api/instructions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title,
-                    content,
-                    priority,
-                    valid_until: validUntil || null,
-                    assigned_designations: selectedDesignations,
-                    is_active: true,
-                }),
+                body: formData,
             })
 
             const json = await res.json()
@@ -94,6 +104,7 @@ export default function InstructionMasterClient({
         setPriority('Normal')
         setValidUntil('')
         setSelectedDesignations([])
+        setFile(null)
     }
 
     return (
@@ -142,6 +153,15 @@ export default function InstructionMasterClient({
                                 <div className="space-y-2">
                                     <Label htmlFor="inst-valid">Valid Until (optional)</Label>
                                     <Input id="inst-valid" type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="inst-file">PDF Attachment (optional)</Label>
+                                    <Input 
+                                        id="inst-file" 
+                                        type="file" 
+                                        accept="application/pdf" 
+                                        onChange={e => setFile(e.target.files ? e.target.files[0] : null)} 
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Applicable To *</Label>

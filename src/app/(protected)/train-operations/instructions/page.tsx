@@ -10,7 +10,7 @@ export default async function InstructionMasterPage() {
         : { data: null }
 
     const userRole = empData?.role?.toLowerCase() || profile?.role?.toLowerCase() || 'employee'
-    const canCreate = ['admin', 'hod', 'manager'].includes(userRole)
+    const canCreate = ['admin', 'hod', 'manager', 'cxo'].includes(userRole)
 
     // Default fallback designations
     let availableDesignations = ['Train Operator', 'Crew Controller', 'Station Controller', 'OCC Controller']

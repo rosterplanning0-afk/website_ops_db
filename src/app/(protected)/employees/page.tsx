@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Users, Search, Filter, Edit, Download } from 'lucide-react'
 import { EditEmployeeDialog } from '@/components/employees/edit-employee-dialog'
-
+import * as XLSX from 'xlsx'
+import { useRef } from 'react'
 export default function EmployeeListPage() {
     const [employees, setEmployees] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -18,6 +19,8 @@ export default function EmployeeListPage() {
     const [userDelegations, setUserDelegations] = useState<any[]>([])
     const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Filters
     const [searchId, setSearchId] = useState('')
@@ -29,7 +32,7 @@ export default function EmployeeListPage() {
         async function fetchEmployees() {
             const supabase = createClient()
             setLoading(true)
-            
+
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
@@ -59,7 +62,7 @@ export default function EmployeeListPage() {
             }
 
             let query = supabase.from('employees').select('*').order('name', { ascending: true })
-            
+
             // Apply department filter for non-admins
             if (userRole !== 'admin' && userDept !== 'all') {
                 query = query.eq('department', userDept)
@@ -79,7 +82,7 @@ export default function EmployeeListPage() {
     }
 
     const uniqueDepartments = Array.from(new Set(employees.map(e => e.department).filter(Boolean)))
-    
+
     // Filter designations based on selected department
     const uniqueDesignations = Array.from(new Set(
         employees
@@ -98,37 +101,103 @@ export default function EmployeeListPage() {
         return matchId && matchDesig && matchDept && matchStatus
     })
 
-    const downloadCSV = () => {
+    const downloadExcel = () => {
         if (!filteredEmployees || filteredEmployees.length === 0) return
 
-        const headers = ['Employee ID', 'Name', 'Designation', 'Department', 'Gender', 'Status', 'Date Joined', 'Date Resigned', 'Date Relieved']
-        const csvRows = [
-            headers.join(','),
-            ...filteredEmployees.map(emp => {
-                return [
-                    `"${emp.employee_id || ''}"`,
-                    `"${(emp.name || '').replace(/"/g, '""')}"`,
-                    `"${emp.designation || ''}"`,
-                    `"${emp.department || ''}"`,
-                    `"${emp.gender || ''}"`,
-                    `"${emp.status || 'Active'}"`,
-                    `"${emp.date_joined || ''}"`,
-                    `"${emp.date_resigned || ''}"`,
-                    `"${emp.date_relived || ''}"`
-                ].join(',')
-            })
-        ]
+        const exportData = filteredEmployees.map(emp => ({
+            'Employee ID': emp.employee_id,
+            'Name': emp.name,
+            'Designation': emp.designation,
+            'Department': emp.department,
+            'Gender': emp.gender,
+            'Status': emp.status || 'Active',
+            'Role': emp.role || 'employee',
+            'Manager ID': emp.manager_id,
+            'Geo Location Link': emp.geo_location_link,
+            'Latitude': emp.latitude,
+            'Longitude': emp.longitude,
+            'Full Address': emp.full_address,
+            'Date Joined': emp.date_joined,
+            'Date Resigned': emp.date_resigned,
+            'Date Relieved': emp.date_relived,
+            'Last Updated At': emp.last_updated_at ? new Date(emp.last_updated_at).toLocaleString('en-IN') : '—'
+        }))
 
-        const csvString = csvRows.join('\n')
-        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' })
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.setAttribute('href', url)
-        link.setAttribute('download', `employee_list_${new Date().toISOString().split('T')[0]}.csv`)
-        link.style.visibility = 'hidden'
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
+        const worksheet = XLSX.utils.json_to_sheet(exportData)
+        const workbook = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Employees')
+        XLSX.writeFile(workbook, `employee_list_${new Date().toISOString().split('T')[0]}.xlsx`)
+    }
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setIsUploading(true)
+        const reader = new FileReader()
+
+        reader.onload = async (event) => {
+            try {
+                const data = new Uint8Array(event.target?.result as ArrayBuffer)
+                const workbook = XLSX.read(data, { type: 'array' })
+                const sheetName = workbook.SheetNames[0]
+                const worksheet = workbook.Sheets[sheetName]
+                const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet)
+
+                const formattedData = jsonData.map((row: any) => ({
+                    employee_id: row['Employee ID'],
+                    name: row['Name'],
+                    designation: row['Designation'],
+                    department: row['Department'],
+                    gender: row['Gender'],
+                    status: row['Status'],
+                    role: row['Role'],
+                    manager_id: row['Manager ID'],
+                    geo_location_link: row['Geo Location Link'],
+                    latitude: row['Latitude'],
+                    longitude: row['Longitude'],
+                    full_address: row['Full Address'],
+                    date_joined: row['Date Joined'],
+                    date_resigned: row['Date Resigned'],
+                    date_relived: row['Date Relieved']
+                })).filter(row => row.employee_id) // ensure employee_id exists
+
+                if (formattedData.length === 0) {
+                    alert('No valid employee data found in the file.')
+                    setIsUploading(false)
+                    return
+                }
+
+                const res = await fetch('/api/employees/bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ employees: formattedData })
+                })
+
+                if (res.ok) {
+                    alert('Employees updated successfully!')
+                    refreshData()
+                } else {
+                    const errorData = await res.json()
+                    alert(`Error updating employees: ${errorData.error}`)
+                }
+            } catch (error) {
+                console.error('Error processing file:', error)
+                alert('Failed to process Excel file.')
+            } finally {
+                setIsUploading(false)
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '' // Reset input
+                }
+            }
+        }
+
+        reader.onerror = () => {
+            alert('Failed to read file')
+            setIsUploading(false)
+        }
+
+        reader.readAsArrayBuffer(file)
     }
 
     return (
@@ -199,10 +268,29 @@ export default function EmployeeListPage() {
                         <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> All Employees</CardTitle>
                         <div className="flex items-center gap-4">
                             {userRoleState !== 'employee' && (
-                                <Button variant="outline" size="sm" onClick={downloadCSV} className="flex items-center gap-2">
-                                    <Download className="h-4 w-4" />
-                                    Download CSV
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="file"
+                                        accept=".xlsx, .xls"
+                                        className="hidden"
+                                        ref={fileInputRef}
+                                        onChange={handleFileUpload}
+                                    />
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="flex items-center gap-2"
+                                        disabled={isUploading}
+                                    >
+                                        <Download className="h-4 w-4 rotate-180" />
+                                        {isUploading ? 'Uploading...' : 'Upload Excel'}
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={downloadExcel} className="flex items-center gap-2">
+                                        <Download className="h-4 w-4" />
+                                        Download Excel
+                                    </Button>
+                                </div>
                             )}
                             <span className="text-sm font-medium bg-red-100 text-red-800 px-3 py-1 rounded-full">{filteredEmployees.length} Results</span>
                         </div>
@@ -238,8 +326,8 @@ export default function EmployeeListPage() {
                                             </TableCell>
                                             {canEdit && (
                                                 <TableCell className="text-right">
-                                                    <Button 
-                                                        variant="ghost" 
+                                                    <Button
+                                                        variant="ghost"
                                                         size="sm"
                                                         onClick={() => {
                                                             setSelectedEmployee(emp)
@@ -262,7 +350,7 @@ export default function EmployeeListPage() {
                 </CardContent>
             </Card>
 
-            <EditEmployeeDialog 
+            <EditEmployeeDialog
                 employee={selectedEmployee}
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}

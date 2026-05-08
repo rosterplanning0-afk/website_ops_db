@@ -37,18 +37,18 @@ export function InstructionBlocker({ userId }: { userId: string }) {
         const empId = userProfile.employee_id
         const designation = empRecord.designation
 
-        // 2. Get all active instructions for this designation
+        // 2. Get all active instructions for this designation (including All Staff)
         const { data: assigned } = await supabase
             .from('instruction_designation_assignments')
             .select(`
                 instruction_id, 
                 instructions!inner(
-                    id, title, content, created_at, is_active, 
+                    id, title, content, created_at, is_active, file_url,
                     creator:employees(name, designation),
                     instruction_designation_assignments(designation)
                 )
             `)
-            .eq('designation', designation)
+            .in('designation', [designation, 'All Staff'])
             .eq('instructions.is_active', true)
 
         if (!assigned || assigned.length === 0) return
@@ -114,7 +114,7 @@ export function InstructionBlocker({ userId }: { userId: string }) {
 
     return (
         <Dialog open={open} onOpenChange={() => { }}>
-            <DialogContent className="sm:max-w-3xl [&>button]:hidden p-0 overflow-hidden" onPointerDownOutside={(e) => e.preventDefault()}>
+            <DialogContent className="sm:max-w-4xl p-0 overflow-y-auto max-h-[90vh]" onPointerDownOutside={(e) => e.preventDefault()}>
                 <DialogHeader className="p-3 bg-blue-600 text-white m-0">
                     <DialogTitle className="text-center text-lg font-bold tracking-wide">Instruction Assurance</DialogTitle>
                 </DialogHeader>

@@ -36,7 +36,7 @@ export function InstructionDialog({ instructionId, open, onOpenChange, employeeI
         const { data: inst } = await supabase
             .from('instructions')
             .select(`
-                id, title, content, created_at,
+                id, title, content, created_at, file_url,
                 creator:employees(name, designation),
                 assignments:instruction_designation_assignments(designation)
             `)
@@ -88,7 +88,7 @@ export function InstructionDialog({ instructionId, open, onOpenChange, employeeI
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl p-0 overflow-hidden">
+            <DialogContent className="sm:max-w-4xl p-0 overflow-y-auto max-h-[90vh]">
                 <DialogHeader className="p-3 bg-blue-600 text-white m-0">
                     <DialogTitle className="text-center text-lg font-bold tracking-wide">
                         Instruction Assurance

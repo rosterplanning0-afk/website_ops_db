@@ -31,7 +31,7 @@ export default function InstructionAckSheetPage() {
     const [initialLoading, setInitialLoading] = useState(true)
     const [dataLoading, setDataLoading] = useState(false)
 
-    const [userContext, setUserContext] = useState({ role: '', dept: '' })
+    const [userContext, setUserContext] = useState({ role: '', dept: '', employeeId: '' })
 
     useEffect(() => {
         async function loadInitial() {
@@ -50,9 +50,8 @@ export default function InstructionAckSheetPage() {
                 } else if (profile) {
                     userRole = (profile.role || '').toLowerCase()
                 }
+                setUserContext({ role: userRole, dept: userDept, employeeId: profile?.employee_id || '' })
             }
-
-            setUserContext({ role: userRole, dept: userDept })
 
             let allowedDesigs = new Set<string>()
             if (userRole !== 'admin' && userDept) {
@@ -93,7 +92,7 @@ export default function InstructionAckSheetPage() {
             const { data: inst } = await supabase
                 .from('instructions')
                 .select(`
-                    id, title, content, created_at,
+                    id, title, content, created_at, file_url,
                     creator:employees(name, designation),
                     assignments:instruction_designation_assignments(designation)
                 `)
@@ -186,7 +185,12 @@ export default function InstructionAckSheetPage() {
                         Instruction Preview
                     </div>
                     <div className="p-4">
-                        <InstructionAssurancePreview instruction={fullInstruction} />
+                        <InstructionAssurancePreview 
+                            instruction={fullInstruction} 
+                            employeeId={userContext.employeeId}
+                            acknowledged={employees.find(e => e.employee_id === userContext.employeeId)?.acknowledged_at ? true : false}
+                            onAcknowledge={() => setSelectedId(selectedId)} // Refresh data
+                        />
                     </div>
                 </div>
             )}
@@ -246,7 +250,7 @@ export default function InstructionAckSheetPage() {
                                         )}
                                     </td>
                                     <td className="border border-slate-300 px-4 py-3 text-sm text-center font-mono">
-                                        {emp.acknowledged_at ? new Date(emp.acknowledged_at).toLocaleDateString('en-GB') : '—'}
+                                        {emp.acknowledged_at ? new Date(emp.acknowledged_at).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '—'}
                                     </td>
                                     <td className="border border-slate-300 px-4 py-3 text-sm hidden print:table-cell"></td>
                                 </tr>

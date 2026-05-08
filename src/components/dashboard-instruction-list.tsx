@@ -24,22 +24,28 @@ export function DashboardInstructionList({ userId }: InstructionListProps) {
 
         // 1. Get user designation
         const { data: userProfile } = await supabase.from('users').select('employee_id').eq('id', userId).single()
-        if (!userProfile?.employee_id) return
+        if (!userProfile?.employee_id) {
+            setLoading(false)
+            return
+        }
 
         const { data: empRecord } = await supabase.from('employees').select('designation').eq('employee_id', userProfile.employee_id).single()
-        if (!empRecord?.designation) return
+        if (!empRecord?.designation) {
+            setLoading(false)
+            return
+        }
 
         const designation = empRecord.designation
         const empId = userProfile.employee_id
 
-        // 2. Fetch assigned active instructions
+        // 2. Fetch assigned active instructions (including those for All Staff)
         const { data: assigned } = await supabase
             .from('instruction_designation_assignments')
             .select(`
                 instruction_id, 
                 instructions!inner(id, title, priority, created_at, is_active)
             `)
-            .eq('designation', designation)
+            .in('designation', [designation, 'All Staff'])
             .eq('instructions.is_active', true)
 
         if (!assigned || assigned.length === 0) {

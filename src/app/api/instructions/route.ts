@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z, ZodError } from 'zod'
 import { limiter } from '@/lib/rate-limit'
 import { createClient } from '@/utils/supabase/server'
+import { uploadFileToDrive } from '@/utils/google-drive'
 
 const CreateInstructionPayload = z.object({
     title: z.string().min(3, 'Title must be at least 3 characters'),
@@ -50,11 +51,29 @@ export async function POST(req: Request) {
             .eq('id', user.id)
             .single()
 
-        if (!profile || !['admin', 'hod', 'manager'].includes(profile.role)) {
+        if (!profile || !['admin', 'hod', 'manager', 'cxo'].includes(profile.role.toLowerCase())) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
 
-        const body = await req.json()
+        let body: any
+        let file: File | null = null
+
+        const contentType = req.headers.get('content-type') || ''
+        if (contentType.includes('multipart/form-data')) {
+            const formData = await req.formData()
+            file = formData.get('file') as File
+            body = {
+                title: formData.get('title'),
+                content: formData.get('content'),
+                priority: formData.get('priority') || 'Normal',
+                valid_until: formData.get('valid_until') || null,
+                assigned_designations: JSON.parse(formData.get('assigned_designations') as string),
+                is_active: formData.get('is_active') === 'true',
+            }
+        } else {
+            body = await req.json()
+        }
+
         const parsed = CreateInstructionPayload.parse(body)
 
         // Note: created_by has a FK to employees table — only set it if the
@@ -70,12 +89,29 @@ export async function POST(req: Request) {
             if (empCheck) createdBy = profile.employee_id
         }
 
+        let fileId: string | null = null
+        let fileUrl: string | null = null
+
+        if (file) {
+            try {
+                const buffer = Buffer.from(await file.arrayBuffer())
+                const uploadRes = await uploadFileToDrive(buffer, file.name, file.type)
+                fileId = uploadRes.fileId || null
+                fileUrl = uploadRes.webViewLink || null
+            } catch (uploadError) {
+                console.error('[Google Drive Upload Error]', uploadError)
+                return NextResponse.json({ error: 'Failed to upload PDF to Google Drive' }, { status: 500 })
+            }
+        }
+
         const insertData: Record<string, any> = {
             title: parsed.title,
             content: parsed.content,
             priority: parsed.priority,
             valid_until: parsed.valid_until || null,
             is_active: parsed.is_active,
+            file_id: fileId,
+            file_url: fileUrl,
             ...(createdBy ? { created_by: createdBy } : {}),
         }
 
@@ -108,7 +144,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ data: instruction }, { status: 201 })
     } catch (error) {
         if (error === 'Rate limit exceeded') return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 })
-        if (error instanceof ZodError) return NextResponse.json({ error: 'Invalid input', details: error.flatten().fieldErrors }, { status: 400 })
+        if (error instanceof ZodError) {
+            const firstError = error.errors[0]?.message || 'Invalid input'
+            return NextResponse.json({ error: firstError, details: error.flatten().fieldErrors }, { status: 400 })
+        }
         console.error('[POST /api/instructions]', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }

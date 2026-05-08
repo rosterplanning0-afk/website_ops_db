@@ -61,6 +61,17 @@ export function InstructionAssurancePreview({
                         Instruction ({instruction?.title || 'No Title'})
                     </td>
                 </tr>
+                {instruction?.file_url && (
+                    <tr>
+                        <td colSpan={2} className="border border-slate-300 p-0 h-[600px] bg-white">
+                            <iframe
+                                src={instruction.file_url.replace('/view', '/preview').replace('?usp=drivesdk', '')}
+                                className="w-full h-full border-none"
+                                title="Instruction PDF"
+                            />
+                        </td>
+                    </tr>
+                )}
                 <tr>
                     <td colSpan={2} className="border border-slate-300 p-4 text-slate-800 min-h-[120px] whitespace-pre-wrap font-medium align-top leading-relaxed bg-white">
                         {instruction?.content}
