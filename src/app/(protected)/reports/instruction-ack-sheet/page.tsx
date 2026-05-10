@@ -68,7 +68,7 @@ export default function InstructionAckSheetPage() {
             let filtered = data || []
             if (userRole !== 'admin' && allowedDesigs.size > 0) {
                 filtered = filtered.filter(inst => {
-                    return inst.instruction_designation_assignments?.some(a => 
+                    return inst.instruction_designation_assignments?.some((a: any) => 
                         a.designation === 'All Staff' || allowedDesigs.has(a.designation)
                     )
                 })

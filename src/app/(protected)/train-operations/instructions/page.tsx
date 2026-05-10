@@ -46,7 +46,7 @@ export default async function InstructionMasterPage() {
     let filteredInstructions = instructions || []
     if (userRole !== 'admin' && availableDesignations.length > 0) {
         filteredInstructions = filteredInstructions.filter((inst) => {
-            return inst.instruction_designation_assignments?.some(a => 
+            return inst.instruction_designation_assignments?.some((a: any) => 
                 a.designation === 'All Staff' || availableDesignations.includes(a.designation)
             )
         })

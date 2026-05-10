@@ -83,7 +83,7 @@ export default function InstructionAckPage() {
             if (userRole !== 'admin' && userDept && userDept !== 'all') {
                 const allowedDesigs = new Set((activeEmployees || []).map(e => e.designation))
                 filteredInstData = filteredInstData.filter(inst => {
-                    return inst.instruction_designation_assignments?.some(a => 
+                    return inst.instruction_designation_assignments?.some((a: any) => 
                         a.designation === 'All Staff' || allowedDesigs.has(a.designation)
                     )
                 })

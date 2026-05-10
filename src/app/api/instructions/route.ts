@@ -145,8 +145,8 @@ export async function POST(req: Request) {
     } catch (error) {
         if (error === 'Rate limit exceeded') return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 })
         if (error instanceof ZodError) {
-            const firstError = error.errors[0]?.message || 'Invalid input'
-            return NextResponse.json({ error: firstError, details: error.flatten().fieldErrors }, { status: 400 })
+            const firstError = (error as any).errors[0]?.message || 'Invalid input'
+            return NextResponse.json({ error: firstError, details: (error as any).flatten().fieldErrors }, { status: 400 })
         }
         console.error('[POST /api/instructions]', error)
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
