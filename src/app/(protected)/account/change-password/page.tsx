@@ -62,6 +62,16 @@ export default function ChangePasswordPage() {
                 setCurrentPassword('')
                 setNewPassword('')
                 setConfirmPassword('')
+
+                // Log out using supabase client
+                const { createClient } = await import('@/utils/supabase/client')
+                const supabase = createClient()
+                await supabase.auth.signOut()
+
+                // Wait 2 seconds for user to see success message, then redirect to login
+                setTimeout(() => {
+                    window.location.href = '/'
+                }, 2000)
             } else {
                 setError(json.error || 'Failed to change password.')
             }
@@ -84,10 +94,10 @@ export default function ChangePasswordPage() {
                 </CardHeader>
                 <CardContent>
                     {success ? (
-                        <div className="flex flex-col items-center py-8 gap-4">
+                        <div className="flex flex-col items-center py-8 gap-4 text-center">
                             <CheckCircle className="h-16 w-16 text-green-500" />
                             <p className="text-lg font-semibold text-green-700">Password updated successfully!</p>
-                            <Button variant="outline" onClick={() => setSuccess(false)}>Change Again</Button>
+                            <p className="text-sm text-slate-500">You have been logged out for security reasons. Redirecting to login page...</p>
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-5">

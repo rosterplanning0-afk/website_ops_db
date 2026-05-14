@@ -54,7 +54,7 @@ export default async function InstructionMasterPage() {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-slate-800 border-b pb-2">Train Operations – Manage Instructions</h2>
+            <h2 className="text-2xl font-bold text-slate-800 border-b pb-2">Train Operations – Manage Assurance</h2>
             <InstructionMasterClient 
                 initialInstructions={filteredInstructions} 
                 canCreate={canCreate} 

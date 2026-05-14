@@ -25,10 +25,11 @@ export default async function DashboardPage() {
         .single()
 
     const { data: empData } = profile?.employee_id
-        ? await supabase.from('employees').select('role, department').eq('employee_id', profile.employee_id).single()
+        ? await supabase.from('employees').select('role, department, designation').eq('employee_id', profile.employee_id).single()
         : { data: null }
 
     const role = (empData?.role?.toLowerCase() || profile?.role?.toLowerCase() || 'employee') as UserRole
+    const isCrewController = empData?.designation?.toLowerCase().includes('crew controller') ?? false
     const canCreateInstruction = ['admin', 'hod', 'manager'].includes(role)
     const userDepartment = empData?.department || 'all'
     const deptLower = userDepartment.toLowerCase()
@@ -57,7 +58,7 @@ export default async function DashboardPage() {
     const { data: allEmployees } = await supabase
         .from('employees')
         .select('employee_id, name, designation, department, gender, manager_id')
-        .eq('status', 'Active')
+        .in('status', ['Active', 'Notice Period'])
         .order('name')
 
     // Filter employees for dashboard breakdowns depending on role
@@ -133,11 +134,49 @@ export default async function DashboardPage() {
         .select('*', { count: 'exact', head: true })
         .is('acknowledged_at', null)
 
+    // ── Recent Line Defects (for crew controllers, managers, HOD, admin) ──
+    const showLineDefects = role === 'admin' || role === 'hod' || role === 'manager' || isCrewController
+    const { data: recentLineDefects } = showLineDefects
+        ? await supabase
+            .from('line_defects')
+            .select('id, emp_name, emp_id, failure_related_to, location, details, reported_at, status')
+            .order('reported_at', { ascending: false })
+            .limit(5)
+        : { data: null }
+
+    // ── Expiring Competencies (expires in 90 days or less) ──
+    const showExpiringCompetencies = role === 'admin' || role === 'hod' || role === 'manager' || role === 'roster_planners'
+    const ninetyDaysFromNow = new Date(today.getTime() + 90 * 86400000).toISOString().split('T')[0]
+    const todayStr = today.toISOString().split('T')[0]
+
+    const { data: expiringCompetencies } = showExpiringCompetencies
+        ? await supabase
+            .from('employee_competencies')
+            .select('*')
+            .lte('valid_till', ninetyDaysFromNow)
+            .gte('valid_till', todayStr)
+            .order('valid_till', { ascending: true })
+        : { data: null }
+
+    const nameMap = new Map(allEmployees?.map(e => [e.employee_id, e.name]) || [])
+    let expiringCompetencyList = expiringCompetencies?.map((c: any) => {
+        const validTillDate = new Date(c.valid_till)
+        const diffTime = validTillDate.getTime() - today.getTime()
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        return { ...c, diffDays, empName: nameMap.get(c.employee_id) || 'Unknown' }
+    }) || []
+
+    // Filter by department/delegation for non-admin roles
+    if (role !== 'admin') {
+        const allowedEmpIds = new Set(departmentEmployees.map(e => e.employee_id))
+        expiringCompetencyList = expiringCompetencyList.filter(c => allowedEmpIds.has(c.employee_id))
+    }
+
     // ═══════════════════════════
     //  EMPLOYEE DASHBOARD
     // ═══════════════════════════
     if (role === 'employee') {
-        const { data: myCounselling } = profile?.employee_id 
+        const { data: myCounselling } = profile?.employee_id
             ? await supabase.from('employee_counselling').select(`
                 id, counselling_date, reason, remarks, counselled_by, category, score,
                 users:counselled_by (full_name)
@@ -146,13 +185,12 @@ export default async function DashboardPage() {
 
         return (
             <div className="space-y-6">
-                <InstructionBlocker userId={user.id} />
                 <h2 className="text-2xl font-bold text-slate-800">My Dashboard</h2>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     <Card className="lg:col-span-2">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
-                                <AlertTriangle className="h-5 w-5 text-amber-500" /> Latest Instructions
+                                <AlertTriangle className="h-5 w-5 text-amber-500" /> Latest Assurance
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -198,6 +236,60 @@ export default async function DashboardPage() {
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Crew Controller: Recent Line Defects */}
+                {isCrewController && recentLineDefects && (
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle className="flex items-center gap-2">
+                                <AlertTriangle className="h-5 w-5 text-amber-500" /> Recent Line Defects
+                            </CardTitle>
+                            <Link href="/train-operations/line-defects">
+                                <Button size="sm" variant="outline">View All</Button>
+                            </Link>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            {recentLineDefects.length === 0 ? (
+                                <p className="text-sm text-muted-foreground text-center py-6">No defects reported recently.</p>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-xs">
+                                        <thead>
+                                            <tr className="border-b bg-slate-50">
+                                                <th className="text-left py-2 px-4 font-semibold text-slate-500 uppercase">Time</th>
+                                                <th className="text-left py-2 px-4 font-semibold text-slate-500 uppercase">By</th>
+                                                <th className="text-left py-2 px-4 font-semibold text-slate-500 uppercase">Failure</th>
+                                                <th className="text-left py-2 px-4 font-semibold text-slate-500 uppercase">Location</th>
+                                                <th className="text-left py-2 px-4 font-semibold text-slate-500 uppercase">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {recentLineDefects.map((d: any) => (
+                                                <tr key={d.id} className="border-b hover:bg-slate-50">
+                                                    <td className="py-2 px-4 font-mono text-slate-400 whitespace-nowrap">
+                                                        {new Date(d.reported_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                    </td>
+                                                    <td className="py-2 px-4 font-medium text-slate-700">{d.emp_name}</td>
+                                                    <td className="py-2 px-4">
+                                                        <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[10px] font-semibold">
+                                                            {d.failure_related_to}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-2 px-4 text-slate-600">{d.location}</td>
+                                                    <td className="py-2 px-4">
+                                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${d.status === 'open' ? 'bg-red-100 text-red-700' : d.status === 'in_progress' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                                                            {d.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
             </div>
         )
     }
@@ -206,7 +298,10 @@ export default async function DashboardPage() {
     //  ROSTER PLANNER DASHBOARD
     // ═══════════════════════════
     if (role === 'roster_planners') {
-        return <RosterPlannerDashboardView />
+        return <RosterPlannerDashboardView 
+            department={userDepartment} 
+            allowedEmployeeIds={departmentEmployees.map(e => e.employee_id)} 
+        />
     }
 
     // ═══════════════════════════
@@ -273,7 +368,7 @@ export default async function DashboardPage() {
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Active Instructions</CardTitle>
+                        <CardTitle className="text-sm font-medium">Active Assurance</CardTitle>
                         <FileText className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
@@ -342,7 +437,7 @@ export default async function DashboardPage() {
                     {/* Latest Instructions */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Latest Instructions</CardTitle>
+                            <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> Latest Assurance</CardTitle>
                             {canCreateInstruction && (
                                 <Link href="/train-operations/instructions">
                                     <Button size="sm" variant="outline"><Plus className="h-3 w-3 mr-1" /> New</Button>
@@ -363,7 +458,7 @@ export default async function DashboardPage() {
                                     ))}
                                 </ul>
                             ) : (
-                                <p className="text-sm text-muted-foreground text-center py-4">No instructions found.</p>
+                                <p className="text-sm text-muted-foreground text-center py-4">No assurance found.</p>
                             )}
                         </CardContent>
                     </Card>
@@ -397,6 +492,44 @@ export default async function DashboardPage() {
                         </Card>
                     )}
 
+                    {/* Recent Line Defects */}
+                    {recentLineDefects && (
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <CardTitle className="flex items-center gap-2 text-sm">
+                                    <AlertTriangle className="h-4 w-4 text-amber-500" /> Recent Line Defects
+                                </CardTitle>
+                                <Link href="/train-operations/line-defects">
+                                    <Button size="sm" variant="outline" className="text-xs h-7">View All</Button>
+                                </Link>
+                            </CardHeader>
+                            <CardContent>
+                                {recentLineDefects.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground text-center py-4">No defects reported recently.</p>
+                                ) : (
+                                    <ul className="space-y-2">
+                                        {recentLineDefects.map((d: any) => (
+                                            <li key={d.id} className="p-2.5 bg-slate-50 rounded-md border border-slate-100">
+                                                <div className="flex items-start justify-between gap-2 mb-1">
+                                                    <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[10px] font-bold uppercase">
+                                                        {d.failure_related_to}
+                                                    </span>
+                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${d.status === 'open' ? 'bg-red-100 text-red-700' : d.status === 'in_progress' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                                                        {d.status}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs font-medium text-slate-700 truncate">{d.location}</p>
+                                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                                    {d.emp_name} · {new Date(d.reported_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                </p>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {/* Quick Actions */}
                     <Card>
                         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
@@ -408,7 +541,7 @@ export default async function DashboardPage() {
                                 <Users className="h-4 w-4 inline mr-2" /> View Employees
                             </Link>
                             <Link href="/reports/instruction-ack" className="block w-full p-3 hover:bg-slate-100 rounded-md border text-sm font-medium transition-colors">
-                                <FileText className="h-4 w-4 inline mr-2" /> Instruction Ack Report
+                                <FileText className="h-4 w-4 inline mr-2" /> Assurance Ack Report
                             </Link>
                             <Link href="/reports/inspection-stats" className="block w-full p-3 hover:bg-slate-100 rounded-md border text-sm font-medium transition-colors">
                                 <BarChart3 className="h-4 w-4 inline mr-2" /> Inspection Statistics
@@ -417,6 +550,69 @@ export default async function DashboardPage() {
                     </Card>
                 </div>
             </div>
+
+            {/* Expiring Competencies — full width, always visible for admin/hod/manager */}
+            {showExpiringCompetencies && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Activity className="h-5 w-5 text-red-500" />
+                            Expiring Competencies
+                            <span className="text-xs font-normal text-muted-foreground ml-2">(active roles expiring within 90 days · sorted by earliest expiry)</span>
+                            {expiringCompetencyList.length > 0 && (
+                                <span className="ml-auto text-xs font-semibold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                                    {expiringCompetencyList.length} record{expiringCompetencyList.length !== 1 ? 's' : ''}
+                                </span>
+                            )}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        {expiringCompetencyList.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-8">
+                                No competencies expiring within the next 90 days.
+                            </p>
+                        ) : (
+                            <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
+                                <Table>
+                                    <TableHeader className="sticky top-0 bg-white z-10">
+                                        <TableRow className="bg-slate-50">
+                                            <TableHead>Employee</TableHead>
+                                            <TableHead>Designation</TableHead>
+                                            <TableHead>Department</TableHead>
+                                            <TableHead>Expiry Date</TableHead>
+                                            <TableHead>Days Left</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {expiringCompetencyList.map(c => (
+                                            <TableRow key={c.id}>
+                                                <TableCell>
+                                                    <div className="font-medium text-sm">{c.empName}</div>
+                                                    <div className="text-xs text-slate-400 font-mono">{c.employee_id}</div>
+                                                </TableCell>
+                                                <TableCell className="text-sm">{c.designation}</TableCell>
+                                                <TableCell className="text-sm">{c.department}</TableCell>
+                                                <TableCell className="text-sm font-mono">
+                                                    {new Date(c.valid_till).toLocaleDateString('en-IN')}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                                                        c.diffDays > 60 ? 'bg-green-100 text-green-700'
+                                                        : c.diffDays >= 30 ? 'bg-amber-100 text-amber-700'
+                                                        : 'bg-red-100 text-red-700'
+                                                    }`}>
+                                                        {c.diffDays}d
+                                                    </span>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
         </div>
     )
 }

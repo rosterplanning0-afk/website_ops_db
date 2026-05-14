@@ -42,7 +42,7 @@ export function InstructionAssurancePreview({
                 </tr>
                 <tr>
                     <td className="border border-slate-300 p-2 font-bold w-[200px] bg-slate-50 text-slate-800">
-                        Instruction Received From
+                        Assurance Received From
                     </td>
                     <td className="border border-slate-300 p-2 font-bold text-slate-800 bg-white">
                         {creatorName}
@@ -58,7 +58,7 @@ export function InstructionAssurancePreview({
                 </tr>
                 <tr>
                     <td colSpan={2} className="border border-slate-300 p-2 font-bold text-center bg-slate-50 text-slate-800">
-                        Instruction ({instruction?.title || 'No Title'})
+                        Assurance ({instruction?.title || 'No Title'})
                     </td>
                 </tr>
                 {instruction?.file_url && (
@@ -67,7 +67,7 @@ export function InstructionAssurancePreview({
                             <iframe
                                 src={instruction.file_url.replace('/view', '/preview').replace('?usp=drivesdk', '')}
                                 className="w-full h-full border-none"
-                                title="Instruction PDF"
+                                title="Assurance PDF"
                             />
                         </td>
                     </tr>
@@ -90,20 +90,20 @@ export function InstructionAssurancePreview({
                                 {acknowledged ? (
                                     <div className="flex flex-col items-center gap-2">
                                         <p className="text-sm font-medium italic text-slate-600">
-                                            "I hereby declare that I have carefully read and fully understood the above instruction, and I agree to strictly comply with it."
+                                            "I hereby declare that I have carefully read and fully understood the above assurance, and I agree to strictly comply with it."
                                         </p>
                                         <span className="inline-flex items-center px-4 py-2 bg-green-100 text-green-800 rounded-md font-bold text-sm">
-                                            ✓ You have acknowledged this instruction
+                                            ✓ You have acknowledged this assurance
                                         </span>
                                     </div>
                                 ) : (
                                     <div className="flex flex-col items-center justify-center gap-4">
                                         <p className="text-sm font-medium italic text-slate-600 max-w-2xl">
-                                            "I hereby declare that I have carefully read and fully understood the above instruction, and I agree to strictly comply with it."
+                                            "I hereby declare that I have carefully read and fully understood the above assurance, and I agree to strictly comply with it."
                                         </p>
                                         {totalPending && currentIndex !== undefined && (
                                             <p className="text-sm font-semibold text-slate-600 text-center">
-                                                Instruction {currentIndex + 1} of {totalPending}
+                                                Assurance {currentIndex + 1} of {totalPending}
                                             </p>
                                         )}
                                         <Button

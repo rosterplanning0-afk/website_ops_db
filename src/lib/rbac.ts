@@ -39,6 +39,7 @@ const roleAccessMap: Record<UserRole, string[]> = {
         '/dashboard',
         '/instructions',
         '/account',
+        '/train-operations/line-defects',
     ],
     roster_planners: [
         '/dashboard',
@@ -74,28 +75,33 @@ export const sidebarConfig: SidebarItem[] = [
     {
         label: 'Employee Master',
         icon: 'Users',
-        roles: ['admin', 'cxo', 'roster_planners'],
+        roles: ['admin', 'cxo', 'hod', 'roster_planners'],
         children: [
             { label: 'Employee List', href: '/employees', icon: 'List', roles: ['admin', 'cxo', 'roster_planners'] },
             { label: 'Assign Manager', href: '/employees/assign-manager', icon: 'UserPlus', roles: ['admin'] },
             { label: 'Employee Profile', href: '/employees/profile', icon: 'UserCircle', roles: '*' },
+            { label: 'Competency Register', href: '/employees/competency', icon: 'BookOpen', roles: ['admin', 'hod', 'roster_planners'] },
         ],
     },
     {
         label: 'Counselling',
-        href: '/counselling',
         icon: 'MessageCircle',
         roles: ['admin', 'hod', 'manager'],
+        children: [
+            { label: 'Individual', href: '/counselling', icon: 'UserCircle', roles: ['admin', 'hod', 'manager'] },
+            { label: 'General', href: '/counselling/general', icon: 'Users', roles: ['admin', 'hod', 'manager'] },
+        ]
     },
     {
         label: 'Train Operations',
         icon: 'Train',
-        roles: ['admin', 'hod', 'manager'],
+        roles: ['admin', 'hod', 'manager', 'employee'],
         children: [
             { label: 'TO Inspection', href: '/train-operations/inspection', icon: 'ClipboardCheck', roles: ['admin', 'hod', 'manager'] },
             // DISABLED FOR NOW. To enable, uncomment the following lines:
             // { label: 'TO Performance', href: '/train-operations/performance', icon: 'BarChart3', roles: ['admin', 'hod', 'manager'] },
-            { label: 'Instructions', href: '/train-operations/instructions', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
+            { label: 'Assurance', href: '/train-operations/instructions', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
+            { label: 'Line Defect Register', href: '/train-operations/line-defects', icon: 'AlertTriangle', roles: ['admin', 'hod', 'manager', 'employee'] },
         ],
     },
     {
@@ -103,7 +109,7 @@ export const sidebarConfig: SidebarItem[] = [
         icon: 'Radio',
         roles: ['admin', 'hod', 'manager'],
         children: [
-            { label: 'Instructions', href: '/occ/instructions', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
+            { label: 'Assurance', href: '/occ/instructions', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
         ],
     },
     {
@@ -111,7 +117,7 @@ export const sidebarConfig: SidebarItem[] = [
         icon: 'Building2',
         roles: ['admin', 'hod', 'manager'],
         children: [
-            { label: 'Instructions', href: '/station-control/instructions', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
+            { label: 'Assurance', href: '/station-control/instructions', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
         ],
     },
     {
@@ -129,10 +135,11 @@ export const sidebarConfig: SidebarItem[] = [
         icon: 'FileBarChart',
         roles: ['admin', 'hod', 'manager'],
         children: [
-            { label: 'Instruction Ack', href: '/reports/instruction-ack', icon: 'FileCheck', roles: ['admin', 'hod', 'manager'] },
-            { label: 'Ack Sheet', href: '/reports/instruction-ack-sheet', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
+            { label: 'Assurance Ack', href: '/reports/instruction-ack', icon: 'FileCheck', roles: ['admin', 'hod', 'manager'] },
+            { label: 'Assurance Ack Sheet', href: '/reports/instruction-ack-sheet', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
             { label: 'Role/Section Summary', href: '/reports/role-summary', icon: 'PieChart', roles: ['admin', 'hod'] },
             { label: 'Inspection Statistics', href: '/reports/inspection-stats', icon: 'TrendingUp', roles: ['admin', 'hod', 'manager'] },
+            { label: 'Competency Report', href: '/reports/competency', icon: 'History', roles: ['admin', 'hod', 'manager'] },
         ],
     },
     {
@@ -141,6 +148,7 @@ export const sidebarConfig: SidebarItem[] = [
         roles: '*',
         children: [
             { label: 'Employee Profile', href: '/employees/profile', icon: 'UserCircle', roles: '*' },
+            { label: 'Create Credentials', href: '/admin/create-credentials', icon: 'UserPlus', roles: ['admin'] },
             { label: 'Delegation Settings', href: '/admin/delegation', icon: 'ShieldCheck', roles: ['admin'] },
             { label: 'Access Rights', href: '/admin/access-rights', icon: 'ShieldAlert', roles: ['admin'] },
             { label: 'Change Password', href: '/account/change-password', icon: 'Key', roles: '*' },
@@ -192,14 +200,16 @@ export function getFilteredSidebar(
 
             if (!roleMatch) return false
 
-            // Department specific logic for HOD and Manager
-            if (role === 'manager' || role === 'hod') {
+            // Department specific logic for HOD, Manager, and Employee
+            if (role === 'manager' || role === 'hod' || role === 'employee') {
                 const dept = (department || '').toLowerCase()
                 const label = item.label.toLowerCase()
 
                 if (label === 'train operations' && !dept.includes('train')) return false
-                if (label === 'occ' && !dept.includes('occ')) return false
-                if (label === 'station control' && !dept.includes('station')) return false
+                if (role !== 'employee') {
+                    if (label === 'occ' && !dept.includes('occ')) return false
+                    if (label === 'station control' && !dept.includes('station')) return false
+                }
             }
 
             return true

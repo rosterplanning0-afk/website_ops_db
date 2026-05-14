@@ -11,9 +11,10 @@ interface InstructionDialogProps {
     onOpenChange: (open: boolean) => void
     employeeId?: string // If provided, check/allow acknowledgement
     onAcknowledged?: () => void
+    mandatory?: boolean
 }
 
-export function InstructionDialog({ instructionId, open, onOpenChange, employeeId, onAcknowledged }: InstructionDialogProps) {
+export function InstructionDialog({ instructionId, open, onOpenChange, employeeId, onAcknowledged, mandatory }: InstructionDialogProps) {
     const [instruction, setInstruction] = useState<any>(null)
     const [loading, setLoading] = useState(false)
     const [acknowledged, setAcknowledged] = useState(false)
@@ -88,10 +89,14 @@ export function InstructionDialog({ instructionId, open, onOpenChange, employeeI
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-4xl p-0 overflow-y-auto max-h-[90vh]">
+            <DialogContent 
+                className={`sm:max-w-4xl p-0 overflow-y-auto max-h-[90vh] ${mandatory ? '[&>button]:hidden' : ''}`}
+                onInteractOutside={mandatory ? (e) => e.preventDefault() : undefined}
+                onEscapeKeyDown={mandatory ? (e) => e.preventDefault() : undefined}
+            >
                 <DialogHeader className="p-3 bg-blue-600 text-white m-0">
                     <DialogTitle className="text-center text-lg font-bold tracking-wide">
-                        Instruction Assurance
+                        Assurance
                     </DialogTitle>
                 </DialogHeader>
 

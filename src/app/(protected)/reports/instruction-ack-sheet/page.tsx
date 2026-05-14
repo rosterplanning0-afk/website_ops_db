@@ -156,7 +156,7 @@ export default function InstructionAckSheetPage() {
 
             {/* Instruction Selector */}
             <div className="max-w-md print:hidden space-y-2">
-                <label className="text-sm font-medium text-slate-700 block">Select Instruction to View Report</label>
+                <label className="text-sm font-medium text-slate-700 block">Select Assurance to View Report</label>
                 <div className="flex gap-2">
                     <select
                         value={selectedId}
@@ -172,7 +172,7 @@ export default function InstructionAckSheetPage() {
                         variant="outline"
                         onClick={() => setShowPreview(!showPreview)}
                         disabled={dataLoading || !fullInstruction}
-                        title="Toggle Instruction Preview"
+                        title="Toggle Assurance Preview"
                     >
                         {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
@@ -182,7 +182,7 @@ export default function InstructionAckSheetPage() {
             {showPreview && fullInstruction && (
                 <div className="border rounded-md shadow-sm overflow-hidden bg-white print:hidden">
                     <div className="bg-blue-600 text-white p-3 text-center font-bold tracking-wide">
-                        Instruction Preview
+                        Assurance Preview
                     </div>
                     <div className="p-4">
                         <InstructionAssurancePreview 
@@ -205,13 +205,13 @@ export default function InstructionAckSheetPage() {
                     <div className="text-center mb-8 pb-4 border-b-2 border-red-600">
                         <h2 className="text-xl font-bold text-slate-800 flex items-center justify-center gap-2">
                             <ClipboardList className="h-6 w-6 text-red-600" />
-                            STAFF INSTRUCTION ACKNOWLEDGEMENT
+                            STAFF ASSURANCE ACKNOWLEDGEMENT
                         </h2>
-                        <p className="text-sm text-slate-500 mt-1">Please read the instruction carefully before signing below.</p>
+                        <p className="text-sm text-slate-500 mt-1">Please read the assurance carefully before signing below.</p>
                     </div>
 
                     <div className="flex flex-wrap justify-between text-sm font-medium text-slate-700 mb-6 gap-4">
-                        <div><strong>Instruction:</strong> {fullInstruction?.title || '—'}</div>
+                        <div><strong>Assurance:</strong> {fullInstruction?.title || '—'}</div>
                         <div><strong>Date Issued:</strong> {fullInstruction?.created_at ? new Date(fullInstruction.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</div>
                     </div>
 

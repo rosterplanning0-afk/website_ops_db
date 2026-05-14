@@ -6,8 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow
+} from '@/components/ui/table'
+import {
     Users, UserCheck, UserX, Clock, CalendarOff, AlertTriangle,
-    ChevronLeft, ChevronRight, Search, TrendingUp
+    ChevronLeft, ChevronRight, Search, TrendingUp, Activity
 } from 'lucide-react'
 import {
     PieChart, Pie, Cell, ResponsiveContainer, Tooltip
@@ -24,7 +27,12 @@ function formatDate(d: Date): string {
     return d.toISOString().split('T')[0]
 }
 
-export function RosterPlannerDashboardView() {
+interface RosterPlannerDashboardViewProps {
+    department?: string
+    allowedEmployeeIds?: string[]
+}
+
+export function RosterPlannerDashboardView({ department, allowedEmployeeIds }: RosterPlannerDashboardViewProps) {
     const [selectedDate, setSelectedDate] = useState<string>(formatDate(new Date()))
     const [crewFilter, setCrewFilter] = useState<string>('all')
     const [searchTerm, setSearchTerm] = useState('')
@@ -32,7 +40,51 @@ export function RosterPlannerDashboardView() {
     const [loading, setLoading] = useState(true)
     const [crewTypes, setCrewTypes] = useState<string[]>([])
     const [categoryFilter, setCategoryFilter] = useState<string>('all')
+    const [expiringCompetencies, setExpiringCompetencies] = useState<any[]>([])
     const supabase = createClient()
+
+    useEffect(() => {
+        async function fetchExpiring() {
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const ninetyDaysFromNow = new Date(today.getTime() + 90 * 86400000).toISOString().split('T')[0]
+            const todayStr = today.toISOString().split('T')[0]
+
+            const { data: rows } = await supabase
+                .from('employee_competencies')
+                .select('*')
+                .lte('valid_till', ninetyDaysFromNow)
+                .gte('valid_till', todayStr)
+                .order('valid_till', { ascending: true })
+
+            if (rows) {
+                // Fetch names for these specific employees
+                const empIds = [...new Set(rows.map(r => r.employee_id))]
+                const { data: emps } = await supabase
+                    .from('employees')
+                    .select('employee_id, name')
+                    .in('employee_id', empIds)
+                
+                const nameMap = new Map(emps?.map(e => [e.employee_id, e.name]) || [])
+
+                let enriched = rows.map((c: any) => {
+                    const validTillDate = new Date(c.valid_till)
+                    const diffTime = validTillDate.getTime() - today.getTime()
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                    return { ...c, diffDays, empName: nameMap.get(c.employee_id) || 'Unknown' }
+                })
+
+                // Filter by allowed IDs if provided
+                if (allowedEmployeeIds && allowedEmployeeIds.length > 0) {
+                    const idSet = new Set(allowedEmployeeIds)
+                    enriched = enriched.filter(c => idSet.has(c.employee_id))
+                }
+
+                setExpiringCompetencies(enriched)
+            }
+        }
+        fetchExpiring()
+    }, [allowedEmployeeIds])
 
     useEffect(() => {
         async function fetchData() {
@@ -308,6 +360,53 @@ export function RosterPlannerDashboardView() {
                         </Link>
                     </CardContent>
                 </Card>
+
+                {/* Expiring Competencies — Full Width */}
+                {expiringCompetencies.length > 0 && (
+                    <Card className="lg:col-span-3 shadow-sm">
+                        <CardHeader className="pb-2 border-b">
+                            <CardTitle className="text-sm font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                <Activity className="h-4 w-4 text-red-500" />
+                                Expiring Competencies (90 Days)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="bg-slate-50">
+                                            <TableHead className="text-[10px] uppercase font-bold text-slate-500">Employee</TableHead>
+                                            <TableHead className="text-[10px] uppercase font-bold text-slate-500">Designation</TableHead>
+                                            <TableHead className="text-[10px] uppercase font-bold text-slate-500">Expiry Date</TableHead>
+                                            <TableHead className="text-[10px] uppercase font-bold text-slate-500">Days Left</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {expiringCompetencies.map(c => (
+                                            <TableRow key={c.id} className="text-xs">
+                                                <TableCell className="py-2">
+                                                    <div className="font-bold text-slate-800">{c.empName}</div>
+                                                    <div className="text-[10px] text-slate-500 font-mono">{c.employee_id}</div>
+                                                </TableCell>
+                                                <TableCell className="py-2 text-slate-600">{c.designation}</TableCell>
+                                                <TableCell className="py-2 font-mono text-slate-600">{new Date(c.valid_till).toLocaleDateString('en-IN')}</TableCell>
+                                                <TableCell className="py-2">
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                                        c.diffDays > 60 ? 'bg-green-100 text-green-700'
+                                                        : c.diffDays >= 30 ? 'bg-amber-100 text-amber-700'
+                                                        : 'bg-red-100 text-red-700'
+                                                    }`}>
+                                                        {c.diffDays}d
+                                                    </span>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
 
             {/* Roster Details Table - Added Back */}

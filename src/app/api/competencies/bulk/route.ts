@@ -1,0 +1,79 @@
+import { createClient } from '@/utils/supabase/server'
+import { NextResponse } from 'next/server'
+
+export async function POST(req: Request) {
+    try {
+        const supabase = await createClient()
+        const { competencies } = await req.json()
+
+        if (!competencies || !Array.isArray(competencies)) {
+            return NextResponse.json({ error: 'Invalid data format' }, { status: 400 })
+        }
+
+        // 1. Get all employee IDs from database to validate existence
+        const { data: existingEmps } = await supabase
+            .from('employees')
+            .select('employee_id')
+        
+        const existingEmpIds = new Set(existingEmps?.map(e => e.employee_id) || [])
+
+        const validRecords: any[] = []
+        const invalidRecords: any[] = []
+
+        // 2. Validate records
+        competencies.forEach((row, index) => {
+            const empId = String(row.employee_id || '').trim()
+            
+            if (!empId) {
+                invalidRecords.push({ row: index + 2, employee_id: 'MISSING', reason: 'Employee ID is required' })
+                return
+            }
+
+            if (!existingEmpIds.has(empId)) {
+                invalidRecords.push({ row: index + 2, employee_id: empId, reason: 'Employee ID not found in database' })
+                return
+            }
+
+            if (!row.department || !row.designation || !row.valid_from) {
+                invalidRecords.push({ row: index + 2, employee_id: empId, reason: 'Missing required fields (Department, Designation, or Valid From)' })
+                return
+            }
+
+            validRecords.push({
+                employee_id: empId,
+                department: row.department,
+                designation: row.designation,
+                valid_from: row.valid_from,
+                valid_till: row.valid_till || null,
+            })
+        })
+
+        // 3. Batch insert valid records
+        let insertedCount = 0
+        if (validRecords.length > 0) {
+            const { error: insertError } = await supabase
+                .from('employee_competencies')
+                .insert(validRecords)
+            
+            if (insertError) {
+                console.error('Batch insert error:', insertError)
+                return NextResponse.json({ error: 'Failed to insert records: ' + insertError.message }, { status: 500 })
+            }
+            insertedCount = validRecords.length
+        }
+
+        return NextResponse.json({
+            success: true,
+            summary: {
+                total: competencies.length,
+                inserted: insertedCount,
+                failed: invalidRecords.length
+            },
+            failed_records: invalidRecords
+        })
+
+    } catch (error: any) {
+        console.error('Bulk competency error:', error)
+        return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 })
+    }
+}

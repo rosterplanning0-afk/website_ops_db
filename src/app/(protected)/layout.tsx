@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { ForcePasswordRedirect } from '@/components/force-password-redirect'
 import { redirect } from 'next/navigation'
 import { ProtectedShell } from '@/components/protected-shell'
+import { InstructionBlocker } from '@/components/instruction-blocker'
 import type { UserRole } from '@/lib/rbac'
 
 export default async function ProtectedLayout({
@@ -47,9 +48,14 @@ export default async function ProtectedLayout({
         })
     }
 
+    // InstructionBlocker handles checking pending instructions and redirecting internally
+    const excludeRoles = ['admin', 'manager', 'hod', 'cxo']
+    const shouldShowInstructionBlocker = !profile?.force_password_change && !excludeRoles.includes(userRole)
+    
     return (
         <>
             <ForcePasswordRedirect force={!!profile?.force_password_change} />
+            {shouldShowInstructionBlocker && <InstructionBlocker userId={user.id} />}
             <ProtectedShell
                 userRole={userRole}
                 userDepartment={userDepartment}

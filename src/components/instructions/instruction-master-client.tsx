@@ -59,7 +59,7 @@ export default function InstructionMasterClient({
     async function handleSave() {
         if (!title.trim() || !content.trim() || selectedDesignations.length === 0) return
         if (content.trim().length < 10) {
-            setErrorMsg('Instruction details must be at least 10 characters.')
+            setErrorMsg('Assurance details must be at least 10 characters.')
             return
         }
         setSaving(true)
@@ -88,10 +88,10 @@ export default function InstructionMasterClient({
                 resetForm()
                 setDialogOpen(false)
             } else {
-                setErrorMsg(json.error || 'Failed to save instruction. Please try again.')
+                setErrorMsg(json.error || 'Failed to save assurance. Please try again.')
             }
         } catch (err) {
-            console.error('Failed to save instruction', err)
+            console.error('Failed to save assurance', err)
             setErrorMsg('Network error. Please try again.')
         } finally {
             setSaving(false)
@@ -110,21 +110,21 @@ export default function InstructionMasterClient({
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-2xl font-bold text-slate-800">Instruction Master</h2>
+                <h2 className="text-2xl font-bold text-slate-800">Assurance Master</h2>
                 {canCreate && (
                     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button className="bg-red-600 hover:bg-red-700"><Plus className="h-4 w-4 mr-1" /> New Instruction</Button>
+                            <Button className="bg-red-600 hover:bg-red-700"><Plus className="h-4 w-4 mr-1" /> New Assurance</Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
-                                <DialogTitle>Add New Instruction</DialogTitle>
-                                <DialogDescription>Fill in all required fields to publish a new instruction.</DialogDescription>
+                                <DialogTitle>Add New Assurance</DialogTitle>
+                                <DialogDescription>Fill in all required fields to publish a new assurance.</DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4 mt-4">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="inst-title">Instruction Title *</Label>
+                                        <Label htmlFor="inst-title">Assurance Title *</Label>
                                         <Input id="inst-title" placeholder="Enter title" value={title} onChange={e => setTitle(e.target.value)} />
                                     </div>
                                     <div className="space-y-2">
@@ -140,12 +140,12 @@ export default function InstructionMasterClient({
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="inst-content">Instruction Details *</Label>
+                                    <Label htmlFor="inst-content">Assurance Details *</Label>
                                     <textarea
                                         id="inst-content"
                                         rows={4}
                                         className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        placeholder="Enter full instruction details..."
+                                        placeholder="Enter full assurance details..."
                                         value={content}
                                         onChange={e => setContent(e.target.value)}
                                     />
@@ -192,7 +192,7 @@ export default function InstructionMasterClient({
                                         disabled={saving || !title.trim() || !content.trim() || selectedDesignations.length === 0}
                                         className="bg-red-600 hover:bg-red-700"
                                     >
-                                        <Save className="h-4 w-4 mr-1" /> {saving ? 'Saving...' : 'Save Instruction'}
+                                        <Save className="h-4 w-4 mr-1" /> {saving ? 'Saving...' : 'Save Assurance'}
                                     </Button>
                                 </div>
                             </div>
@@ -201,14 +201,14 @@ export default function InstructionMasterClient({
                 )}
             </div>
 
-            {/* Recent Instructions Table */}
+            {/* Recent Assurance Table */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> All Instructions</CardTitle>
+                    <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> All Assurance</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {instructions.length === 0 ? (
-                        <p className="text-sm text-center text-muted-foreground py-8">No instructions found.</p>
+                        <p className="text-sm text-center text-muted-foreground py-8">No assurance found.</p>
                     ) : (
                         <div className="overflow-x-auto">
                             <Table>

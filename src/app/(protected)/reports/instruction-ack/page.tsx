@@ -177,7 +177,7 @@ export default function InstructionAckPage() {
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-2xl font-bold text-slate-800">Instruction Acknowledgement Status</h2>
+                <h2 className="text-2xl font-bold text-slate-800">Assurance Acknowledgement Status</h2>
                 <Button variant="outline" size="sm" onClick={() => window.print()} className="print:hidden"><Download className="h-4 w-4 mr-1" /> Export PDF</Button>
             </div>
 
@@ -186,13 +186,13 @@ export default function InstructionAckPage() {
                     {/* Filters */}
                     <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl print:hidden">
                         <div>
-                            <label className="text-sm font-medium text-slate-700 mb-2 block">Select Instruction</label>
+                            <label className="text-sm font-medium text-slate-700 mb-2 block">Select Assurance</label>
                             <select
                                 value={selectedInstruction}
                                 onChange={e => setSelectedInstruction(e.target.value)}
                                 className="w-full border border-input rounded-md p-2 text-sm bg-white"
                             >
-                                <option value="all">All Instructions</option>
+                                <option value="all">All Assurance</option>
                                 {instructions.map(inst => (
                                     <option key={inst.id} value={inst.id}>{inst.title}</option>
                                 ))}
@@ -220,7 +220,7 @@ export default function InstructionAckPage() {
                                     <TableHead>Employee ID</TableHead>
                                     <TableHead>Name</TableHead>
                                     <TableHead>Designation</TableHead>
-                                    <TableHead>Instruction</TableHead>
+                                    <TableHead>Assurance</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Ack Date</TableHead>
                                     <TableHead>Actions</TableHead>

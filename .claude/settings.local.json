@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Select-String -Path \"C:\\\\Users\\\\BangeraP\\\\OneDrive - DB E.C.O. Group\\\\Documents\\\\projects\\\\db_operation_website\\\\.env.local\" -Pattern \"NEXT_PUBLIC_SUPABASE\")",
+      "Bash(Select-Object Line)",
+      "PowerShell(Select-String -Path \"C:\\\\Users\\\\BangeraP\\\\OneDrive - DB E.C.O. Group\\\\Documents\\\\projects\\\\db_operation_website\\\\.env.local\" -Pattern \"NEXT_PUBLIC_SUPABASE\" | Select-Object -ExpandProperty Line | ForEach-Object { $_.Split\\('='\\)[0] })"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "code-review-graph"
+  ]
+}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { useRouter, usePathname } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import { InstructionAssurancePreview } from './instruction-assurance-preview'
 
@@ -19,10 +20,19 @@ export function InstructionBlocker({ userId }: { userId: string }) {
     const [currentIndex, setCurrentIndex] = useState(0)
     const [loading, setLoading] = useState(false)
     const [open, setOpen] = useState(false)
+    const pathname = usePathname()
+    const router = useRouter()
 
     useEffect(() => {
         fetchPending()
     }, [userId])
+
+    // Redirect to dashboard if pending and on another page
+    useEffect(() => {
+        if (open && pending.length > 0 && pathname !== '/dashboard') {
+            router.replace('/dashboard')
+        }
+    }, [open, pending.length, pathname, router])
 
     async function fetchPending() {
         const supabase = createClient()
@@ -114,9 +124,14 @@ export function InstructionBlocker({ userId }: { userId: string }) {
 
     return (
         <Dialog open={open} onOpenChange={() => { }}>
-            <DialogContent className="sm:max-w-4xl p-0 overflow-y-auto max-h-[90vh]" onPointerDownOutside={(e) => e.preventDefault()}>
+            <DialogContent 
+                className="sm:max-w-4xl p-0 overflow-y-auto max-h-[90vh] [&>button]:hidden" 
+                onInteractOutside={(e) => e.preventDefault()}
+                onEscapeKeyDown={(e) => e.preventDefault()}
+                onPointerDownOutside={(e) => e.preventDefault()}
+            >
                 <DialogHeader className="p-3 bg-blue-600 text-white m-0">
-                    <DialogTitle className="text-center text-lg font-bold tracking-wide">Instruction Assurance</DialogTitle>
+                    <DialogTitle className="text-center text-lg font-bold tracking-wide">Assurance</DialogTitle>
                 </DialogHeader>
 
                 <div className="p-5 bg-white">

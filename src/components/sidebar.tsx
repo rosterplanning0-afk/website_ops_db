@@ -9,14 +9,14 @@ import {
     BarChart3, MessageCircle, FileText, Radio, Building2, FileBarChart,
     FileCheck, PieChart, TrendingUp, ChevronDown, ChevronRight, Menu, X, LogOut,
     ShieldCheck, UserCog, KeyRound, Key, CalendarDays, ShieldAlert, UserPlus,
-    PanelLeftClose, PanelLeftOpen,
+    PanelLeftClose, PanelLeftOpen, AlertTriangle, BookOpen, History,
 } from 'lucide-react'
 
 const iconMap: Record<string, React.ElementType> = {
     LayoutDashboard, Users, List, UserCircle, Train, ClipboardCheck,
     BarChart3, MessageCircle, FileText, Radio, Building2, FileBarChart,
     FileCheck, PieChart, TrendingUp, ShieldCheck, UserCog, KeyRound, Key,
-    CalendarDays, ShieldAlert, UserPlus,
+    CalendarDays, ShieldAlert, UserPlus, AlertTriangle, BookOpen, History,
 }
 
 interface SidebarProps {

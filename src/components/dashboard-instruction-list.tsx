@@ -75,8 +75,8 @@ export function DashboardInstructionList({ userId }: InstructionListProps) {
         setLoading(false)
     }
 
-    if (loading) return <p className="text-sm text-muted-foreground text-center py-4">Loading instructions...</p>
-    if (instructions.length === 0) return <p className="text-sm text-muted-foreground text-center py-4">No instructions found for your designation.</p>
+    if (loading) return <p className="text-sm text-muted-foreground text-center py-4">Loading assurance...</p>
+    if (instructions.length === 0) return <p className="text-sm text-muted-foreground text-center py-4">No assurance found for your designation.</p>
 
     return (
         <>
