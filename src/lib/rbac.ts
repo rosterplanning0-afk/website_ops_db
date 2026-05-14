@@ -45,6 +45,7 @@ const roleAccessMap: Record<UserRole, string[]> = {
         '/dashboard',
         '/employees',
         '/roster-analytics',
+        '/reports',
         '/account',
     ],
 }
@@ -133,13 +134,13 @@ export const sidebarConfig: SidebarItem[] = [
     {
         label: 'Reports',
         icon: 'FileBarChart',
-        roles: ['admin', 'hod', 'manager'],
+        roles: ['admin', 'hod', 'manager', 'roster_planners'],
         children: [
             { label: 'Assurance Ack', href: '/reports/instruction-ack', icon: 'FileCheck', roles: ['admin', 'hod', 'manager'] },
             { label: 'Assurance Ack Sheet', href: '/reports/instruction-ack-sheet', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
             { label: 'Role/Section Summary', href: '/reports/role-summary', icon: 'PieChart', roles: ['admin', 'hod'] },
             { label: 'Inspection Statistics', href: '/reports/inspection-stats', icon: 'TrendingUp', roles: ['admin', 'hod', 'manager'] },
-            { label: 'Competency Report', href: '/reports/competency', icon: 'History', roles: ['admin', 'hod', 'manager'] },
+            { label: 'Competency Report', href: '/reports/competency', icon: 'History', roles: ['admin', 'hod', 'manager', 'roster_planners'] },
         ],
     },
     {
