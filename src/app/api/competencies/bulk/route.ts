@@ -43,6 +43,7 @@ export async function POST(req: Request) {
                 employee_id: empId,
                 department: row.department,
                 designation: row.designation,
+                train_type: row.designation === 'Train Operators' ? row.train_type : null,
                 valid_from: row.valid_from,
                 valid_till: row.valid_till || null,
             })

@@ -18,13 +18,13 @@ export function BulkCompetencyDialog({ onSuccess }: BulkCompetencyDialogProps) {
     const [error, setError] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const TEMPLATE_COLUMNS = ['Employee ID', 'Department', 'Designation', 'Valid From', 'Valid Till']
+    const TEMPLATE_COLUMNS = ['Employee ID', 'Department', 'Designation', 'Train Type', 'Valid From', 'Valid Till']
 
     const downloadTemplate = () => {
         const wsData = [
             TEMPLATE_COLUMNS,
-            ['EMP001', 'Train Operations', 'Train Operator', '2024-01-01', '2025-01-01'],
-            ['EMP002', 'OCC', 'Traffic Controller', '2024-02-15', '']
+            ['EMP001', 'Train Operations', 'Train Operator', 'RRTS', '2024-01-01', '2025-01-01'],
+            ['EMP002', 'OCC', 'Traffic Controller', '', '2024-02-15', '']
         ]
         const ws = XLSX.utils.aoa_to_sheet(wsData)
         const wb = XLSX.utils.book_new()
@@ -74,6 +74,7 @@ export function BulkCompetencyDialog({ onSuccess }: BulkCompetencyDialogProps) {
                     employee_id: row['Employee ID'],
                     department: row['Department'],
                     designation: row['Designation'],
+                    train_type: row['Train Type'],
                     valid_from: typeof row['Valid From'] === 'number' 
                         ? new Date((row['Valid From'] - 25569) * 86400 * 1000).toISOString().split('T')[0]
                         : row['Valid From'],

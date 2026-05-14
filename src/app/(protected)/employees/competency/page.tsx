@@ -25,6 +25,7 @@ interface Competency {
     employee_id: string
     department: string
     designation: string
+    train_type?: string | null
     valid_from: string
     valid_till: string | null
     created_at: string
@@ -41,6 +42,7 @@ export default function EmployeeCompetencyPage() {
     const [designation, setDesignation] = useState('')
     const [validFrom, setValidFrom] = useState('')
     const [validTill, setValidTill] = useState('')
+    const [trainType, setTrainType] = useState('')
     const [saving, setSaving] = useState(false)
     const [successMsg, setSuccessMsg] = useState('')
     const [formError, setFormError] = useState('')
@@ -115,6 +117,7 @@ export default function EmployeeCompetencyPage() {
         if (!designation.trim()) { setFormError('Designation is required.'); return }
         if (!validFrom) { setFormError('Valid From date is required.'); return }
         if (validTill && validTill < validFrom) { setFormError('Valid Till must be on or after Valid From.'); return }
+        if (designation === 'Train Operators' && !trainType) { setFormError('Please select Train Type (RRTS/MRTS).'); return }
 
         setSaving(true)
         const supabase = createClient()
@@ -122,6 +125,7 @@ export default function EmployeeCompetencyPage() {
             employee_id: selectedEmpId,
             department,
             designation: designation.trim(),
+            train_type: designation === 'Train Operators' ? trainType : null,
             valid_from: validFrom,
             valid_till: validTill || null,
         })
@@ -136,6 +140,7 @@ export default function EmployeeCompetencyPage() {
         setDesignation('')
         setValidFrom('')
         setValidTill('')
+        setTrainType('')
         setSuccessMsg('Competency record saved successfully.')
         setTimeout(() => setSuccessMsg(''), 4000)
         // Re-fetch history — equivalent to load_competencies.clear() + st.rerun()
@@ -223,6 +228,7 @@ export default function EmployeeCompetencyPage() {
                                         <TableRow className="bg-slate-50">
                                             <TableHead>Department</TableHead>
                                             <TableHead>Designation</TableHead>
+                                            <TableHead>Type</TableHead>
                                             <TableHead>Valid From</TableHead>
                                             <TableHead>Valid Till</TableHead>
                                             <TableHead>Days to Expire</TableHead>
@@ -262,6 +268,13 @@ export default function EmployeeCompetencyPage() {
                                                 <TableRow key={c.id}>
                                                     <TableCell className="text-sm">{c.department}</TableCell>
                                                     <TableCell className="font-medium text-sm">{c.designation}</TableCell>
+                                                    <TableCell className="text-sm">
+                                                        {c.train_type ? (
+                                                            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-bold">
+                                                                {c.train_type}
+                                                            </span>
+                                                        ) : '—'}
+                                                    </TableCell>
                                                     <TableCell className="font-mono text-sm">{c.valid_from}</TableCell>
                                                     <TableCell className="font-mono text-sm text-slate-500">
                                                         {c.valid_till || '—'}
@@ -374,6 +387,23 @@ export default function EmployeeCompetencyPage() {
                                     onChange={e => setValidTill(e.target.value)}
                                 />
                             </div>
+
+                            {designation === 'Train Operators' && (
+                                <div className="space-y-2">
+                                    <Label>
+                                        Train Type <span className="text-red-500">*</span>
+                                    </Label>
+                                    <select
+                                        value={trainType}
+                                        onChange={e => setTrainType(e.target.value)}
+                                        className="w-full border border-input rounded-md p-2 text-sm bg-white"
+                                    >
+                                        <option value="">Select train type...</option>
+                                        <option value="RRTS">RRTS</option>
+                                        <option value="MRTS">MRTS</option>
+                                    </select>
+                                </div>
+                            )}
 
 
 
