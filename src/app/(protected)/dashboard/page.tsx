@@ -25,11 +25,12 @@ export default async function DashboardPage() {
         .single()
 
     const { data: empData } = profile?.employee_id
-        ? await supabase.from('employees').select('role, department, designation').eq('employee_id', profile.employee_id).single()
+        ? await supabase.from('employees').select('role, department, designation, is_line_inspector').eq('employee_id', profile.employee_id).single()
         : { data: null }
 
     const role = (empData?.role?.toLowerCase() || profile?.role?.toLowerCase() || 'employee') as UserRole
     const isCrewController = empData?.designation?.toLowerCase().includes('crew controller') ?? false
+    const isLineInspector = !!empData?.is_line_inspector
     const canCreateInstruction = ['admin', 'hod', 'manager'].includes(role)
     const userDepartment = empData?.department || 'all'
     const deptLower = userDepartment.toLowerCase()
@@ -43,6 +44,11 @@ export default async function DashboardPage() {
     } else if (deptLower.includes('station')) {
         inspectionLink = '/station-control/inspection'
         inspectionLabel = 'New Station Inspection'
+    }
+
+    if (isLineInspector) {
+        inspectionLink = '/train-operations/new-inspection'
+        inspectionLabel = 'New Inspection Form'
     }
 
     // ── Shared data fetches ──
@@ -185,7 +191,17 @@ export default async function DashboardPage() {
 
         return (
             <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-slate-800">My Dashboard</h2>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <h2 className="text-2xl font-bold text-slate-800">My Dashboard</h2>
+                    {isLineInspector && (
+                        <Link href={inspectionLink}>
+                            <Button className="bg-red-600 hover:bg-red-700">
+                                <Plus className="h-4 w-4 mr-1" /> {inspectionLabel}
+                            </Button>
+                        </Link>
+                    )}
+                </div>
+
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     <Card className="lg:col-span-2">
                         <CardHeader>
@@ -236,6 +252,59 @@ export default async function DashboardPage() {
                         </CardContent>
                     </Card>
                 </div>
+
+                {isLineInspector && (
+                    <Card className="w-full">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                                Pending Inspections
+                                <span className="text-xs font-normal text-muted-foreground ml-2">(sorted by most overdue)</span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Employee ID</TableHead>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Designation</TableHead>
+                                            <TableHead>Last Inspection</TableHead>
+                                            <TableHead>Days Pending</TableHead>
+                                            <TableHead>Action</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {pendingList.slice(0, 15).map(emp => (
+                                            <TableRow key={emp.employee_id}>
+                                                <TableCell className="font-mono text-sm">{emp.employee_id}</TableCell>
+                                                <TableCell className="font-medium">{emp.name}</TableCell>
+                                                <TableCell className="text-sm">{emp.designation || '—'}</TableCell>
+                                                <TableCell className="text-sm">
+                                                    {emp.lastInspectionDate ? new Date(emp.lastInspectionDate).toLocaleDateString('en-IN') : <span className="text-red-500 font-semibold">Never</span>}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${emp.daysPending >= 90 ? 'bg-red-100 text-red-700'
+                                                        : emp.daysPending >= 30 ? 'bg-amber-100 text-amber-700'
+                                                            : 'bg-green-100 text-green-700'
+                                                        }`}>
+                                                        {emp.daysPending >= 999 ? 'Never' : `${emp.daysPending}d`}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Link href={inspectionLink}>
+                                                        <Button size="sm" variant="outline"><ClipboardCheck className="h-3 w-3 mr-1" /> Inspect</Button>
+                                                    </Link>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Crew Controller: Recent Line Defects */}
                 {isCrewController && recentLineDefects && (

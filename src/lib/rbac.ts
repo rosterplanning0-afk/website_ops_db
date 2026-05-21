@@ -25,6 +25,7 @@ const roleAccessMap: Record<UserRole, string[]> = {
         '/instructions',
         '/counselling',
         '/roster-analytics',
+        '/account',
     ],
     manager: [
         '/dashboard',
@@ -99,6 +100,7 @@ export const sidebarConfig: SidebarItem[] = [
         roles: ['admin', 'hod', 'manager', 'employee'],
         children: [
             { label: 'TO Inspection', href: '/train-operations/inspection', icon: 'ClipboardCheck', roles: ['admin', 'hod', 'manager'] },
+            { label: 'New Inspection form', href: '/train-operations/new-inspection', icon: 'ClipboardCheck', roles: ['admin', 'hod', 'manager'] },
             // DISABLED FOR NOW. To enable, uncomment the following lines:
             // { label: 'TO Performance', href: '/train-operations/performance', icon: 'BarChart3', roles: ['admin', 'hod', 'manager'] },
             { label: 'Assurance', href: '/train-operations/instructions', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
@@ -152,6 +154,7 @@ export const sidebarConfig: SidebarItem[] = [
             { label: 'Create Credentials', href: '/admin/create-credentials', icon: 'UserPlus', roles: ['admin'] },
             { label: 'Delegation Settings', href: '/admin/delegation', icon: 'ShieldCheck', roles: ['admin'] },
             { label: 'Access Rights', href: '/admin/access-rights', icon: 'ShieldAlert', roles: ['admin'] },
+            { label: 'Line Inspectors', href: '/account/line-inspectors', icon: 'UserCog', roles: ['admin', 'hod', 'manager'] },
             { label: 'Change Password', href: '/account/change-password', icon: 'Key', roles: '*' },
         ],
     },

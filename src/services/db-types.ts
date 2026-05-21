@@ -27,6 +27,7 @@ export const FootplateInspectionSchema = z.object({
     part_a_total: z.number().default(0),
     part_b_total: z.number().default(0),
     part_c_total: z.number().default(0),
+    part_d_total: z.number().default(0),
     overall_total: z.number().default(0),
     status: z.string().default('Pending'),
     observations: z.string().nullable().optional(),
@@ -49,6 +50,7 @@ export const InspectionScoreSchema = z.object({
     item_text: z.string().nullable().optional(),
     max_marks: z.number().default(1),
     marks_awarded: z.number().default(0),
+    remark: z.string().nullable().optional(),
 });
 export type InspectionScore = z.infer<typeof InspectionScoreSchema>;
 

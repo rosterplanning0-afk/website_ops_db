@@ -26,7 +26,7 @@ export default async function ProtectedLayout({
 
     // Fetch employee details directly from employees table using employee_id
     const { data: empData } = profile?.employee_id
-        ? await supabase.from('employees').select('name, designation, role, department').eq('employee_id', profile.employee_id).single()
+        ? await supabase.from('employees').select('name, designation, role, department, is_line_inspector').eq('employee_id', profile.employee_id).single()
         : { data: null }
 
     const userRole = (empData?.role?.toLowerCase() || profile?.role?.toLowerCase() || 'employee') as UserRole
@@ -46,6 +46,14 @@ export default async function ProtectedLayout({
         routeOverrides.forEach(row => {
             accessOverrides[row.item_key] = row.is_visible
         })
+    }
+
+    // Force overrides for Line Inspectors
+    const isLineInspector = !!empData?.is_line_inspector
+    if (isLineInspector) {
+        accessOverrides['Reports'] = true
+        accessOverrides['/reports/inspection-stats'] = true
+        accessOverrides['/train-operations/new-inspection'] = true
     }
 
     // InstructionBlocker handles checking pending instructions and redirecting internally
