@@ -32,19 +32,36 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     const isAuthPage = request.nextUrl.pathname === '/';
+    const isApi = request.nextUrl.pathname.startsWith('/api');
 
-    // Basic RBAC/Session parsing handling (expandable based on user profile fetched from DB if needed)
-    if (!user && !isAuthPage && !request.nextUrl.pathname.startsWith('/api')) {
+    // Extract cached role from cookie set at login
+    const userRole = request.cookies.get('cached_role')?.value || 'employee';
+
+    // Import RBAC checker dynamically or directly if it's available in edge
+    // Edge middleware cannot use some Node.js modules, but rbac.ts only has strings and arrays.
+    // Instead of importing, we can enforce some basic rules here or let the layout handle complex overrides.
+    // We already optimized layout.tsx and API routes, so basic redirect for missing auth is enough,
+    // but we can block known admin routes.
+    
+    if (!user && !isAuthPage && !isApi) {
         const url = request.nextUrl.clone();
         url.pathname = '/';
         return NextResponse.redirect(url);
     }
 
-    // If user is logged in, restrict access to login pages
     if (user && isAuthPage) {
         const url = request.nextUrl.clone();
         url.pathname = '/dashboard';
         return NextResponse.redirect(url);
+    }
+
+    // Basic admin route edge protection
+    if (user && request.nextUrl.pathname.startsWith('/admin')) {
+        if (userRole !== 'admin') {
+            const url = request.nextUrl.clone();
+            url.pathname = '/dashboard';
+            return NextResponse.redirect(url);
+        }
     }
 
     return supabaseResponse;

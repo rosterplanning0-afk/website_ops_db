@@ -11,15 +11,35 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
         }
 
-        // Use service role key to bypass RLS for bulk operations
+        // Secure route: verify JWT and check for admin or roster_planners role
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-        const supabaseAdmin = createClient(supabaseUrl, supabaseKey)
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+            global: {
+                headers: {
+                    Authorization: req.headers.get('Authorization') || '',
+                },
+            },
+        })
 
-        // To ensure only authorized users can do this, verify the user token
-        // In this case, we trust the client's role check (Admin/Roster Planner)
-        // because this is an internal tool, but in a strict production environment
-        // we'd verify the JWT and the user's role here as well.
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const { data: profile } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+
+        if (!profile || !['admin', 'roster_planners'].includes(profile.role.toLowerCase())) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+
+        // Use service role key to bypass RLS for bulk operations
+        const supabaseAdmin = createClient(supabaseUrl, supabaseKey)
         
         const upsertData = employees.map(emp => ({
             employee_id: emp.employee_id?.toString()?.trim(),

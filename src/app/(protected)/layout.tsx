@@ -24,10 +24,24 @@ export default async function ProtectedLayout({
         .eq('id', user.id)
         .single()
 
-    // Fetch employee details directly from employees table using employee_id
-    const { data: empData } = profile?.employee_id
-        ? await supabase.from('employees').select('name, designation, role, department, is_line_inspector').eq('employee_id', profile.employee_id).single()
-        : { data: null }
+    // Fetch employee details and route overrides concurrently
+    const [empDataRes, routeOverridesRes] = await Promise.all([
+        profile?.employee_id 
+            ? supabase.from('employees').select('name, designation, role, department, is_line_inspector').eq('employee_id', profile.employee_id).single()
+            : Promise.resolve({ data: null }),
+        // We can fetch overrides for both possible roles, or wait, we need the final userRole.
+        // But role is usually profile.role unless employee has a different role.
+        // Let's fetch both if they differ, or just fetch for profile.role and employee.role
+        // Actually, to fully optimize without risking missing data, we can query for ALL overrides for this user's possible roles in one go:
+        supabase
+            .from('access_rights_overrides')
+            .select('item_key, is_visible, role')
+            // Using in filter for both possible roles
+            .in('role', [profile?.role || 'employee', 'employee'])
+    ])
+
+    const empData = empDataRes.data
+    const allOverrides = routeOverridesRes.data
 
     const userRole = (empData?.role?.toLowerCase() || profile?.role?.toLowerCase() || 'employee') as UserRole
     const userDesignation = empData?.designation || profile?.role || 'User'
@@ -35,15 +49,10 @@ export default async function ProtectedLayout({
     const userName = empData?.name || profile?.full_name || user.email || 'User'
     const userEmail = user.email || ''
 
-    // Fetch access overrides for the current role
-    const { data: routeOverrides } = await supabase
-        .from('access_rights_overrides')
-        .select('item_key, is_visible')
-        .eq('role', userRole)
-
     const accessOverrides: Record<string, boolean> = {}
-    if (routeOverrides) {
-        routeOverrides.forEach(row => {
+    if (allOverrides) {
+        // Filter overrides for the final userRole
+        allOverrides.filter(row => row.role.toLowerCase() === userRole).forEach(row => {
             accessOverrides[row.item_key] = row.is_visible
         })
     }

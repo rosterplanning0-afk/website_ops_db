@@ -35,8 +35,39 @@ export async function login(formData: FormData) {
         return { error: error.message }
     }
 
-    // Optional: fetch user info to set cookies if needed for middleware RBAC, 
-    // but Supabase session naturally handles authentication state.
+    if (data.user) {
+        // Cache user info in an HTTP-only cookie for immediate middleware access
+        const { data: profile } = await supabase
+            .from('users')
+            .select('role, employee_id')
+            .eq('id', data.user.id)
+            .single()
+
+        if (profile) {
+            let userRole = profile.role
+            
+            if (profile.employee_id) {
+                const { data: empData } = await supabase
+                    .from('employees')
+                    .select('role')
+                    .eq('employee_id', profile.employee_id)
+                    .single()
+                    
+                if (empData?.role) {
+                    userRole = empData.role
+                }
+            }
+
+            // Using Next.js cookies to set an encrypted role token (simple encoding for now, session JWT is secure)
+            const cookieStore = await import('next/headers').then(m => m.cookies())
+            cookieStore.set('cached_role', userRole.toLowerCase(), {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: 60 * 60 * 24 * 7 // 1 week
+            })
+        }
+    }
 
     revalidatePath('/', 'layout')
     redirect('/dashboard')

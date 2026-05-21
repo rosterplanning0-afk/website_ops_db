@@ -1,9 +1,28 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
+import { limiter } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
     try {
+        const ip = req.headers.get('x-forwarded-for') ?? '127.0.0.1'
+        await limiter.check(60, ip)
+
         const supabase = await createClient()
+        
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const { data: profile } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+
+        if (!profile || !['admin', 'roster_planners', 'hod'].includes(profile.role.toLowerCase())) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
         const { competencies } = await req.json()
 
         if (!competencies || !Array.isArray(competencies)) {
