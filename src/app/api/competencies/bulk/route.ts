@@ -71,7 +71,13 @@ export async function POST(req: Request) {
         // 3. Batch insert valid records
         let insertedCount = 0
         if (validRecords.length > 0) {
-            const { error: insertError } = await supabase
+            // Use service role key to bypass RLS for bulk operations
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+            const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+            const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+            const supabaseAdmin = createSupabaseClient(supabaseUrl, supabaseKey)
+
+            const { error: insertError } = await supabaseAdmin
                 .from('employee_competencies')
                 .insert(validRecords)
             
