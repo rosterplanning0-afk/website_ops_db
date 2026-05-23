@@ -64,5 +64,14 @@ export async function updateSession(request: NextRequest) {
         }
     }
 
+    // Fatigue management route protection (only admin and roster_planners allowed)
+    if (user && request.nextUrl.pathname.startsWith('/roster-analytics/fatigue')) {
+        if (userRole !== 'admin' && userRole !== 'roster_planners') {
+            const url = request.nextUrl.clone();
+            url.pathname = '/dashboard';
+            return NextResponse.redirect(url);
+        }
+    }
+
     return supabaseResponse;
 }

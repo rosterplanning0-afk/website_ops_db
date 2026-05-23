@@ -13,6 +13,32 @@ import {
 import type { UserRole } from '@/lib/rbac'
 import { RosterPlannerDashboardView } from '@/components/dashboard/roster-planner-view'
 
+// Safe locale-agnostic date formatter (returns DD/MM/YYYY) to prevent hydration mismatches
+function formatSafeDate(dateInput: string | Date | null | undefined): string {
+    if (!dateInput) return '—'
+    const str = typeof dateInput === 'string' ? dateInput : new Date(dateInput).toISOString()
+    const cleanDate = str.split('T')[0]
+    const parts = cleanDate.split('-')
+    if (parts.length === 3) {
+        const [year, month, day] = parts
+        return `${day}/${month}/${year}`
+    }
+    return '—'
+}
+
+// Safe locale-agnostic date time formatter (returns "DD MMM, HH:MM") to prevent hydration mismatches
+function formatSafeDateTime(dateInput: string | Date | null | undefined): string {
+    if (!dateInput) return '—'
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput
+    if (isNaN(d.getTime())) return '—'
+    const day = d.getDate().toString().padStart(2, '0')
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const month = months[d.getMonth()]
+    const hours = d.getHours().toString().padStart(2, '0')
+    const minutes = d.getMinutes().toString().padStart(2, '0')
+    return `${day} ${month}, ${hours}:${minutes}`
+}
+
 export default async function DashboardPage() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -231,8 +257,8 @@ export default async function DashboardPage() {
                                                     <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${rec.category === 'Bad' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                                         {rec.category || 'Good'}
                                                     </span>
-                                                    <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
-                                                        {new Date(rec.counselling_date).toLocaleDateString('en-IN')}
+                                                    <span className="text-xs text-slate-500 font-medium whitespace-nowrap" suppressHydrationWarning>
+                                                        {formatSafeDate(rec.counselling_date)}
                                                     </span>
                                                 </div>
                                             </div>
@@ -281,8 +307,8 @@ export default async function DashboardPage() {
                                                 <TableCell className="font-mono text-sm">{emp.employee_id}</TableCell>
                                                 <TableCell className="font-medium">{emp.name}</TableCell>
                                                 <TableCell className="text-sm">{emp.designation || '—'}</TableCell>
-                                                <TableCell className="text-sm">
-                                                    {emp.lastInspectionDate ? new Date(emp.lastInspectionDate).toLocaleDateString('en-IN') : <span className="text-red-500 font-semibold">Never</span>}
+                                                <TableCell className="text-sm" suppressHydrationWarning>
+                                                    {emp.lastInspectionDate ? formatSafeDate(emp.lastInspectionDate) : <span className="text-red-500 font-semibold">Never</span>}
                                                 </TableCell>
                                                 <TableCell>
                                                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${emp.daysPending >= 90 ? 'bg-red-100 text-red-700'
@@ -335,8 +361,8 @@ export default async function DashboardPage() {
                                         <tbody>
                                             {recentLineDefects.map((d: any) => (
                                                 <tr key={d.id} className="border-b hover:bg-slate-50">
-                                                    <td className="py-2 px-4 font-mono text-slate-400 whitespace-nowrap">
-                                                        {new Date(d.reported_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                    <td className="py-2 px-4 font-mono text-slate-400 whitespace-nowrap" suppressHydrationWarning>
+                                                        {formatSafeDateTime(d.reported_at)}
                                                     </td>
                                                     <td className="py-2 px-4 font-medium text-slate-700">{d.emp_name}</td>
                                                     <td className="py-2 px-4">
@@ -477,8 +503,8 @@ export default async function DashboardPage() {
                                             <TableCell className="font-mono text-sm">{emp.employee_id}</TableCell>
                                             <TableCell className="font-medium">{emp.name}</TableCell>
                                             <TableCell className="text-sm">{emp.designation || '—'}</TableCell>
-                                            <TableCell className="text-sm">
-                                                {emp.lastInspectionDate ? new Date(emp.lastInspectionDate).toLocaleDateString('en-IN') : <span className="text-red-500 font-semibold">Never</span>}
+                                            <TableCell className="text-sm" suppressHydrationWarning>
+                                                {emp.lastInspectionDate ? formatSafeDate(emp.lastInspectionDate) : <span className="text-red-500 font-semibold">Never</span>}
                                             </TableCell>
                                             <TableCell>
                                                 <span className={`text-xs font-bold px-2 py-0.5 rounded ${emp.daysPending >= 90 ? 'bg-red-100 text-red-700'
@@ -521,7 +547,7 @@ export default async function DashboardPage() {
                                             <FileText className="h-4 w-4 mt-0.5 text-red-500 shrink-0" />
                                             <div className="min-w-0">
                                                 <p className="text-sm font-medium text-slate-800 truncate">{inst.title}</p>
-                                                <p className="text-xs text-slate-400">{inst.created_at ? new Date(inst.created_at).toLocaleDateString('en-IN') : ''}</p>
+                                                <p className="text-xs text-slate-400" suppressHydrationWarning>{inst.created_at ? formatSafeDate(inst.created_at) : ''}</p>
                                             </div>
                                         </li>
                                     ))}
@@ -588,8 +614,8 @@ export default async function DashboardPage() {
                                                     </span>
                                                 </div>
                                                 <p className="text-xs font-medium text-slate-700 truncate">{d.location}</p>
-                                                <p className="text-[10px] text-slate-400 mt-0.5">
-                                                    {d.emp_name} · {new Date(d.reported_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                <p className="text-xs text-slate-400 mt-0.5" suppressHydrationWarning>
+                                                    {d.emp_name} · {formatSafeDateTime(d.reported_at)}
                                                 </p>
                                             </li>
                                         ))}
@@ -652,7 +678,7 @@ export default async function DashboardPage() {
                                             <TableHead>Days Left</TableHead>
                                         </TableRow>
                                     </TableHeader>
-                                    <TableBody>
+                                    <TableBody suppressHydrationWarning>
                                         {expiringCompetencyList.map(c => (
                                             <TableRow key={c.id}>
                                                 <TableCell>
@@ -661,8 +687,8 @@ export default async function DashboardPage() {
                                                 </TableCell>
                                                 <TableCell className="text-sm">{c.designation}</TableCell>
                                                 <TableCell className="text-sm">{c.department}</TableCell>
-                                                <TableCell className="text-sm font-mono">
-                                                    {new Date(c.valid_till).toLocaleDateString('en-IN')}
+                                                <TableCell className="text-sm font-mono" suppressHydrationWarning>
+                                                    {formatSafeDate(c.valid_till)}
                                                 </TableCell>
                                                 <TableCell>
                                                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${

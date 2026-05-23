@@ -52,6 +52,11 @@ const roleAccessMap: Record<UserRole, string[]> = {
 }
 
 export function canAccessRoute(role: UserRole, pathname: string): boolean {
+    // Explicit block for fatigue management for non-admins and non-roster-planners
+    if (pathname.startsWith('/roster-analytics/fatigue')) {
+        return role === 'admin' || role === 'roster_planners'
+    }
+
     const allowed = roleAccessMap[role]
     if (!allowed) return false
     if (allowed.includes('*')) return true
@@ -130,7 +135,7 @@ export const sidebarConfig: SidebarItem[] = [
         children: [
             { label: 'Daily Overview', href: '/roster-analytics/daily', icon: 'CalendarDays', roles: ['admin', 'cxo', 'hod', 'manager', 'roster_planners'] },
             { label: 'Historical Trends', href: '/roster-analytics/trends', icon: 'TrendingUp', roles: ['admin', 'cxo', 'hod', 'manager', 'roster_planners'] },
-            { label: 'Fatigue Management', href: '/roster-analytics/fatigue', icon: 'ShieldAlert', roles: ['admin', 'cxo', 'hod', 'manager', 'roster_planners'] },
+            { label: 'Fatigue Management', href: '/roster-analytics/fatigue', icon: 'ShieldAlert', roles: ['admin', 'roster_planners'] },
         ],
     },
     {
@@ -220,6 +225,11 @@ export function getFilteredSidebar(
         .map((item) => ({
             ...item,
             children: item.children?.filter((child) => {
+                // Hard block for fatigue management for non-admins and non-roster-planners
+                if (child.href === '/roster-analytics/fatigue' && role !== 'admin' && role !== 'roster_planners') {
+                    return false
+                }
+
                 let roleMatch = child.roles === '*' || child.roles.includes(role)
                 
                 // Apply override if exists, except for admin

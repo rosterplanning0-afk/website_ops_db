@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,8 @@ interface EmployeeDay {
 }
 
 export default function FatigueManagementPage() {
+    const router = useRouter()
+    const [authorized, setAuthorized] = useState<boolean | null>(null)
     const [fromDate, setFromDate] = useState<string>(getMonthStart())
     const [toDate, setToDate] = useState<string>(formatDate(new Date()))
     const [crewFilter, setCrewFilter] = useState<string>('all')
@@ -50,8 +53,31 @@ export default function FatigueManagementPage() {
     const supabase = createClient()
 
     useEffect(() => {
-        async function fetchData() {
+        async function checkAccessAndFetch() {
             setLoading(true)
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) {
+                router.push('/')
+                return
+            }
+
+            const { data: profile } = await supabase.from('users').select('role, employee_id').eq('id', user.id).single()
+            let userRole = (profile?.role || 'employee') as string
+
+            if (profile?.employee_id) {
+                const { data: empInfo } = await supabase.from('employees').select('role').eq('employee_id', profile.employee_id).single()
+                if (empInfo) {
+                    userRole = (empInfo.role?.toLowerCase() || userRole)
+                }
+            }
+
+            if (userRole !== 'admin' && userRole !== 'roster_planners') {
+                router.push('/dashboard')
+                return
+            }
+
+            setAuthorized(true)
+
             let allRows: DailyRosterRow[] = []
             let offset = 0
             const limit = 1000
@@ -85,7 +111,7 @@ export default function FatigueManagementPage() {
             }
             setLoading(false)
         }
-        fetchData()
+        checkAccessAndFetch()
     }, [fromDate, toDate])
 
     const filteredData = useMemo(() => {
@@ -249,7 +275,7 @@ export default function FatigueManagementPage() {
         return `${day}.${mon}\n${weekday}`
     }
 
-    if (loading) {
+    if (authorized === null || loading) {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
