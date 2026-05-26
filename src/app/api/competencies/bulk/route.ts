@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
 import { limiter } from '@/lib/rate-limit'
+import { DEPT_CREW_MAPPING } from '@/lib/rbac'
 
 export async function POST(req: Request) {
     try {
@@ -58,11 +59,42 @@ export async function POST(req: Request) {
                 return
             }
 
+            const deptNormalized = String(row.department).trim()
+            const desigNormalized = String(row.designation).trim()
+
+            const matchedDeptKey = Object.keys(DEPT_CREW_MAPPING).find(
+                key => key.toLowerCase() === deptNormalized.toLowerCase()
+            )
+
+            if (!matchedDeptKey) {
+                const validDeptsList = Object.keys(DEPT_CREW_MAPPING).filter(k => k !== 'Station Control') // omit alias from main list
+                invalidRecords.push({ 
+                    row: index + 2, 
+                    employee_id: empId, 
+                    reason: `Invalid Department '${deptNormalized}'. Must be one of: ${validDeptsList.join(', ')}`
+                })
+                return
+            }
+
+            const validDesignations = DEPT_CREW_MAPPING[matchedDeptKey]
+            const matchedDesignation = validDesignations.find(
+                desig => desig.toLowerCase() === desigNormalized.toLowerCase()
+            )
+
+            if (!matchedDesignation) {
+                invalidRecords.push({
+                    row: index + 2,
+                    employee_id: empId,
+                    reason: `Invalid Designation '${desigNormalized}' for department '${matchedDeptKey}'. Must be one of: ${validDesignations.join(', ')}`
+                })
+                return
+            }
+
             validRecords.push({
                 employee_id: empId,
-                department: row.department,
-                designation: row.designation,
-                train_type: row.designation === 'Train Operators' ? row.train_type : null,
+                department: matchedDeptKey, // use normalized/original-cased department name
+                designation: matchedDesignation, // use normalized/original-cased designation name
+                train_type: (matchedDesignation === 'Train Operators' || matchedDesignation === 'Train Attendants') ? row.train_type : null,
                 valid_from: row.valid_from,
                 valid_till: row.valid_till || null,
             })

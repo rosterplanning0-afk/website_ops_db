@@ -259,6 +259,7 @@ export function BulkCompetencyDialog({ onSuccess }: BulkCompetencyDialogProps) {
                                 <p className="font-semibold">Important Notes:</p>
                                 <ul className="list-disc list-inside space-y-1 text-blue-700">
                                     <li>Employee ID must match exactly with the Employee Master.</li>
+                                    <li>Department and Designation must match the official list (case-insensitive).</li>
                                     <li>Dates should be in <span className="font-mono">YYYY-MM-DD</span> format.</li>
                                     <li>Valid Till is optional.</li>
                                     <li>Duplicate records for the same date will be allowed, so check your data first.</li>

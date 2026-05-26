@@ -117,7 +117,7 @@ export default function EmployeeCompetencyPage() {
         if (!designation.trim()) { setFormError('Designation is required.'); return }
         if (!validFrom) { setFormError('Valid From date is required.'); return }
         if (validTill && validTill < validFrom) { setFormError('Valid Till must be on or after Valid From.'); return }
-        if (designation === 'Train Operators' && !trainType) { setFormError('Please select Train Type (RRTS/MRTS).'); return }
+        if ((designation === 'Train Operators' || designation === 'Train Attendants') && !trainType) { setFormError('Please select Train Type.'); return }
 
         setSaving(true)
         const supabase = createClient()
@@ -125,7 +125,7 @@ export default function EmployeeCompetencyPage() {
             employee_id: selectedEmpId,
             department,
             designation: designation.trim(),
-            train_type: designation === 'Train Operators' ? trainType : null,
+            train_type: (designation === 'Train Operators' || designation === 'Train Attendants') ? trainType : null,
             valid_from: validFrom,
             valid_till: validTill || null,
         })
@@ -388,7 +388,7 @@ export default function EmployeeCompetencyPage() {
                                 />
                             </div>
 
-                            {designation === 'Train Operators' && (
+                            {(designation === 'Train Operators' || designation === 'Train Attendants') && (
                                 <div className="space-y-2">
                                     <Label>
                                         Train Type <span className="text-red-500">*</span>
@@ -401,6 +401,7 @@ export default function EmployeeCompetencyPage() {
                                         <option value="">Select train type...</option>
                                         <option value="RRTS">RRTS</option>
                                         <option value="MRTS">MRTS</option>
+                                        <option value="RRTS + MRTS">RRTS + MRTS</option>
                                     </select>
                                 </div>
                             )}
