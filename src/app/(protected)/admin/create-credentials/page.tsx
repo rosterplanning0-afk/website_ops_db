@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createClient } from '@/utils/supabase/client'
+import { DEPT_CREW_MAPPING } from '@/lib/rbac'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,6 +39,30 @@ export default function CreateCredentialsPage() {
     const [successMsg, setSuccessMsg] = useState('')
     const [errorMsg, setErrorMsg] = useState('')
 
+    const [department, setDepartment] = useState('Train Operations')
+    const [designation, setDesignation] = useState('')
+    const [managers, setManagers] = useState<{employee_id: string, name: string}[]>([])
+
+    useEffect(() => {
+        async function loadManagers() {
+            if (!department) {
+                setManagers([])
+                return
+            }
+            const supabase = createClient()
+            const { data } = await supabase
+                .from('employees')
+                .select('employee_id, name')
+                .eq('department', department)
+                .in('role', ['manager', 'hod'])
+            
+            setManagers(data || [])
+        }
+        loadManagers()
+    }, [department])
+
+    const designationOptions = DEPT_CREW_MAPPING[department as keyof typeof DEPT_CREW_MAPPING] || []
+
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
         setLoading(true)
@@ -55,13 +81,15 @@ export default function CreateCredentialsPage() {
             gender: formData.get('gender') as string,
             status: formData.get('status') as string,
             dateJoined: formData.get('dateJoined') as string,
-            managerId: formData.get('managerId') as string,
+            managerId: formData.get('managerId') === 'none' ? '' : (formData.get('managerId') as string),
         }
 
         try {
             await createCredentials(data)
             setSuccessMsg(`Successfully created credentials for ${data.name} (${data.employeeId}).`)
             e.currentTarget.reset()
+            setDepartment('Train Operations')
+            setDesignation('')
         } catch (err: any) {
             setErrorMsg(err.message || 'An error occurred while creating credentials.')
         } finally {
@@ -148,7 +176,7 @@ export default function CreateCredentialsPage() {
 
                                 <div className="space-y-2">
                                     <Label htmlFor="department">Department <span className="text-red-500">*</span></Label>
-                                    <Select name="department" defaultValue="Train Operations" required>
+                                    <Select name="department" value={department} onValueChange={(val) => { setDepartment(val); setDesignation(''); }} required>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select Department" />
                                         </SelectTrigger>
@@ -160,7 +188,18 @@ export default function CreateCredentialsPage() {
 
                                 <div className="space-y-2">
                                     <Label htmlFor="designation">Designation <span className="text-red-500">*</span></Label>
-                                    <Input id="designation" name="designation" required placeholder="e.g. Train Operator" />
+                                    {designationOptions.length > 0 ? (
+                                        <Select name="designation" value={designation} onValueChange={setDesignation} required>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select Designation" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {designationOptions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    ) : (
+                                        <Input id="designation" name="designation" value={designation} onChange={e => setDesignation(e.target.value)} required placeholder="e.g. Developer" />
+                                    )}
                                 </div>
 
                                 <div className="space-y-2">
@@ -194,7 +233,23 @@ export default function CreateCredentialsPage() {
 
                                 <div className="space-y-2 md:col-span-3">
                                     <Label htmlFor="managerId">Manager Employee ID (Optional)</Label>
-                                    <Input id="managerId" name="managerId" placeholder="e.g. MGR98765" />
+                                    {managers.length > 0 ? (
+                                        <Select name="managerId">
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select Manager" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">None</SelectItem>
+                                                {managers.map(m => (
+                                                    <SelectItem key={m.employee_id} value={m.employee_id}>
+                                                        {m.name} ({m.employee_id})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    ) : (
+                                        <Input id="managerId" name="managerId" placeholder="e.g. MGR98765" />
+                                    )}
                                 </div>
                             </div>
                         </div>

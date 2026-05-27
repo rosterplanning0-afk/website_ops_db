@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { FileUp, Download, AlertCircle, CheckCircle2, XCircle, Loader2, Info } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DEPT_CREW_MAPPING } from '@/lib/rbac'
 
 interface BulkCompetencyDialogProps {
     onSuccess: () => void
@@ -23,12 +24,29 @@ export function BulkCompetencyDialog({ onSuccess }: BulkCompetencyDialogProps) {
     const downloadTemplate = () => {
         const wsData = [
             TEMPLATE_COLUMNS,
-            ['EMP001', 'Train Operations', 'Train Operator', 'RRTS', '2024-01-01', '2025-01-01'],
-            ['EMP002', 'OCC', 'Traffic Controller', '', '2024-02-15', '']
+            ['EMP001', 'Train Operations', 'Train Operators', 'RRTS', '2026-06-29', '2029-06-28'],
+            ['EMP002', 'OCC', 'Traffic Controller', '', '2026-02-15', '']
         ]
         const ws = XLSX.utils.aoa_to_sheet(wsData)
+        
+        // Build Reference List Sheet Data
+        const refData = [
+            ['Department', 'Designation', 'Allowed Train Type (If applicable)']
+        ]
+        
+        Object.entries(DEPT_CREW_MAPPING).forEach(([dept, designations]) => {
+            if (dept === 'Station Control') return // skip alias
+            designations.forEach(desig => {
+                const needsTrainType = desig === 'Train Operators' || desig === 'Train Attendants'
+                const trainTypeVal = needsTrainType ? 'RRTS, MRTS, RRTS + MRTS' : ''
+                refData.push([dept, desig, trainTypeVal])
+            })
+        })
+
+        const wsRef = XLSX.utils.aoa_to_sheet(refData)
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, 'Competencies')
+        XLSX.utils.book_append_sheet(wb, wsRef, 'Reference List')
         XLSX.writeFile(wb, 'Competency_Import_Template.xlsx')
     }
 
