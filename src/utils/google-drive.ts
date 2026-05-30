@@ -27,6 +27,11 @@ async function getDriveService() {
                 return google.drive({ version: 'v3', auth: oauth2Client });
             } else {
                 // Otherwise assume it's a service account credentials JSON (google_credentials.json)
+                // Fix potential escaping issues with Vercel environment variables where \n might become literal \\n
+                if (credentials.private_key) {
+                    credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+                }
+                
                 const auth = new google.auth.GoogleAuth({
                     credentials,
                     scopes: SCOPES,
@@ -34,7 +39,9 @@ async function getDriveService() {
                 return google.drive({ version: 'v3', auth });
             }
         } catch (error) {
-            console.error('Failed to parse GOOGLE_CREDENTIALS_JSON from environment variables', error);
+            console.error('Failed to parse or initialize GOOGLE_CREDENTIALS_JSON from environment variables', error);
+            // We throw here instead of falling back to files, so we know exactly why it failed on Vercel
+            throw new Error(`Google Auth initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
