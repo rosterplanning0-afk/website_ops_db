@@ -6,6 +6,39 @@ import fs from 'fs';
 const SCOPES = ['https://www.googleapis.com/auth/drive'];
 
 async function getDriveService() {
+    // 1. First, check if credentials are provided directly as a JSON string (Best for Vercel)
+    if (process.env.GOOGLE_CREDENTIALS_JSON) {
+        try {
+            const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+            
+            // Check if it's an OAuth2 token (token.json)
+            if (credentials.client_id && credentials.client_secret && (credentials.token || credentials.refresh_token)) {
+                const oauth2Client = new google.auth.OAuth2(
+                    credentials.client_id,
+                    credentials.client_secret
+                );
+                oauth2Client.setCredentials({
+                    access_token: credentials.token,
+                    refresh_token: credentials.refresh_token,
+                    expiry_date: credentials.expiry ? new Date(credentials.expiry).getTime() : undefined,
+                    token_type: 'Bearer',
+                    scope: credentials.scopes?.join(' ')
+                });
+                return google.drive({ version: 'v3', auth: oauth2Client });
+            } else {
+                // Otherwise assume it's a service account credentials JSON (google_credentials.json)
+                const auth = new google.auth.GoogleAuth({
+                    credentials,
+                    scopes: SCOPES,
+                });
+                return google.drive({ version: 'v3', auth });
+            }
+        } catch (error) {
+            console.error('Failed to parse GOOGLE_CREDENTIALS_JSON from environment variables', error);
+        }
+    }
+
+    // 2. Fallback to token.json if using OAuth2
     const tokenPath = process.env.GOOGLE_TOKEN_PATH || 'token.json';
     const resolvedTokenPath = path.isAbsolute(tokenPath) ? tokenPath : path.join(process.cwd(), tokenPath);
 
@@ -25,6 +58,7 @@ async function getDriveService() {
         return google.drive({ version: 'v3', auth: oauth2Client });
     }
 
+    // 3. Fallback to reading google_credentials.json file (Best for local development)
     const credentialsPath = process.env.GOOGLE_CREDENTIALS_PATH || 'google_credentials.json';
     const resolvedPath = path.isAbsolute(credentialsPath)
         ? credentialsPath
