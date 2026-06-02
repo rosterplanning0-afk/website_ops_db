@@ -30,10 +30,58 @@ export function BulkCreateDialog() {
     const [isProcessing, setIsProcessing] = useState(false)
     const [results, setResults] = useState<{ success: number; failed: number; logs: string[] } | null>(null)
 
-    function handleDownloadTemplate() {
+    async function handleDownloadTemplate() {
         const ws = XLSX.utils.aoa_to_sheet([REQUIRED_HEADERS])
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, 'Template')
+
+        try {
+            const { createClient } = await import('@/utils/supabase/client')
+            const supabase = createClient()
+            const { data: managers } = await supabase
+                .from('employees')
+                .select('employee_id, name, department')
+                .in('role', ['manager', 'hod'])
+            
+            const ROLES = ['admin', 'cxo', 'hod', 'manager', 'roster_planners', 'employee']
+            const DEPARTMENTS = ['Train Operations', 'Station Operations', 'OCC', 'Maintenance', 'Management', 'HR', 'Other']
+            const GENDERS = ['Male', 'Female', 'Other']
+            const STATUSES = ['Active', 'Inactive', 'Notice Period']
+            
+            // Need to statically provide DEPT_CREW_MAPPING here or import it
+            const { DEPT_CREW_MAPPING } = await import('@/lib/rbac')
+            const allDesignations = Object.values(DEPT_CREW_MAPPING).flat()
+            
+            const maxRows = Math.max(
+                ROLES.length,
+                DEPARTMENTS.length,
+                allDesignations.length,
+                GENDERS.length,
+                STATUSES.length,
+                managers?.length || 0
+            )
+
+            const refData: any[][] = [['Role', 'Department', 'Designation', 'Gender', 'Status', 'Manager ID', 'Manager Name', 'Manager Dept']]
+            
+            for (let i = 0; i < maxRows; i++) {
+                refData.push([
+                    ROLES[i] || '',
+                    DEPARTMENTS[i] || '',
+                    allDesignations[i] || '',
+                    GENDERS[i] || '',
+                    STATUSES[i] || '',
+                    managers?.[i]?.employee_id || '',
+                    managers?.[i]?.name || '',
+                    managers?.[i]?.department || ''
+                ])
+            }
+
+            const wsRef = XLSX.utils.aoa_to_sheet(refData)
+            XLSX.utils.book_append_sheet(wb, wsRef, 'Reference Data')
+        } catch (err) {
+            console.error("Failed to fetch reference data for template", err)
+        }
+
         XLSX.writeFile(wb, 'Bulk_Credentials_Template.xlsx')
     }
 

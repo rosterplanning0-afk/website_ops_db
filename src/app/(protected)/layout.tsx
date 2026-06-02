@@ -65,6 +65,11 @@ export default async function ProtectedLayout({
         accessOverrides['/train-operations/new-inspection'] = true
     }
 
+    // Hide Line Inspectors delegation from non-Train Ops managers/HODs
+    if ((userRole === 'manager' || userRole === 'hod') && userDepartment.toLowerCase() !== 'train operations') {
+        accessOverrides['/account/line-inspectors'] = false
+    }
+
     // InstructionBlocker handles checking pending instructions and redirecting internally
     const excludeRoles = ['admin', 'manager', 'hod', 'cxo']
     const shouldShowInstructionBlocker = !profile?.force_password_change && !excludeRoles.includes(userRole)
