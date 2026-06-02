@@ -38,9 +38,10 @@ interface GeneralCounsellingClientProps {
     initialEmployees: EmployeeOption[]
     initialSessions: SessionOption[]
     userId: string
+    validEmployeeIds?: string[] | null
 }
 
-export function GeneralCounsellingClient({ initialEmployees, initialSessions, userId }: GeneralCounsellingClientProps) {
+export function GeneralCounsellingClient({ initialEmployees, initialSessions, userId, validEmployeeIds }: GeneralCounsellingClientProps) {
     const [selectedSessionId, setSelectedSessionId] = useState<string>('new')
     const [topic, setTopic] = useState('')
     const [details, setDetails] = useState('')
@@ -86,10 +87,19 @@ export function GeneralCounsellingClient({ initialEmployees, initialSessions, us
                 setDetails(session.details || '')
             }
 
-            const { data, error } = await supabase
+            let query = supabase
                 .from('general_counselling_records')
                 .select('*, employees(name)')
                 .eq('session_id', selectedSessionId)
+
+            if (validEmployeeIds && validEmployeeIds.length > 0) {
+                query = query.in('employee_id', validEmployeeIds)
+            } else if (validEmployeeIds && validEmployeeIds.length === 0) {
+                // If the user's department has no employees, ensure query returns nothing
+                query = query.eq('employee_id', 'none')
+            }
+
+            const { data, error } = await query
 
             if (!error && data) {
                 const mapped: CounsellingRow[] = data.map(d => ({

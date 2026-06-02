@@ -36,11 +36,14 @@ export default async function GeneralCounsellingPage() {
         .select('id, topic, details, created_at')
         .order('created_at', { ascending: false })
 
+    const validEmployeeIds = userRole !== 'admin' ? availableEmployees.map(e => e.employee_id) : null
+
     return (
         <GeneralCounsellingClient 
             initialEmployees={availableEmployees as any[]}
             initialSessions={sessions || []}
             userId={user.id}
+            validEmployeeIds={validEmployeeIds}
         />
     )
 }

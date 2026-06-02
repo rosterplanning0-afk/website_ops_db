@@ -27,7 +27,13 @@ export default async function InstructionAckSheetPage() {
 
     let allowedDesigs = new Set<string>()
     if (userRole !== 'admin' && userDept) {
-        const { data: dData } = await supabase.from('employees').select('designation').eq('department', userDept)
+        let query = supabase.from('employees').select('designation')
+        if (userRole === 'manager') {
+            query = query.or(`department.eq.${userDept},manager_id.eq.${employeeId}`)
+        } else {
+            query = query.eq('department', userDept)
+        }
+        const { data: dData } = await query
         dData?.forEach(d => { if (d.designation) allowedDesigs.add(d.designation) })
     }
 

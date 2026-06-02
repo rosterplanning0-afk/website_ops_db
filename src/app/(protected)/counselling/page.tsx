@@ -35,6 +35,16 @@ export default async function CounsellingPage() {
         users:counselled_by (full_name)
     `).order('counselling_date', { ascending: false }).limit(100)
     
+    if (userRole !== 'admin') {
+        const allowedEmpIds = availableEmployees.map(e => e.employee_id)
+        if (allowedEmpIds.length > 0) {
+            recordsQuery = recordsQuery.in('employee_id', allowedEmpIds)
+        } else {
+            // If no employees in department, ensure query returns nothing
+            recordsQuery = recordsQuery.eq('employee_id', 'none')
+        }
+    }
+    
     const { data: history } = await recordsQuery
     
     let visibleRecords: any[] = []

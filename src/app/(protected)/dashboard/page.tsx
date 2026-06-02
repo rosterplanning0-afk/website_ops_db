@@ -74,12 +74,6 @@ export default async function DashboardPage() {
 
     // ── Shared data fetches ──
     const { count: totalEmployees } = await supabase.from('employees').select('*', { count: 'exact', head: true })
-    const { data: latestInstructions } = await supabase
-        .from('instructions')
-        .select('id, title, priority, created_at')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(5)
 
     // ── Pending inspections: employees sorted by most days since last inspection ──
     const { data: allEmployees } = await supabase
@@ -98,6 +92,28 @@ export default async function DashboardPage() {
     }
 
     const dashboardTotalEmployees = departmentEmployees.length
+    
+    // Extract unique designations under this manager/hod
+    const allowedDesignations = Array.from(new Set(departmentEmployees.map(e => e.designation).filter(Boolean)))
+
+    let instructionsQuery = supabase
+        .from('instructions')
+        .select(role === 'admin' 
+            ? 'id, title, priority, created_at' 
+            : 'id, title, priority, created_at, instruction_designation_assignments!inner(designation)'
+        )
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+    if (role !== 'admin' && allowedDesignations.length > 0) {
+        instructionsQuery = instructionsQuery.in('instruction_designation_assignments.designation', [...allowedDesignations, 'All Staff'])
+    } else if (role !== 'admin') {
+        // If they have no employees, they only see All Staff
+        instructionsQuery = instructionsQuery.eq('instruction_designation_assignments.designation', 'All Staff')
+    }
+
+    const { data: latestInstructions } = await instructionsQuery
 
     // Calculate Designation & Gender Breakdowns
     const designationBreakdown = departmentEmployees.reduce((acc, emp) => {
@@ -134,10 +150,16 @@ export default async function DashboardPage() {
     }).sort((a, b) => b.daysPending - a.daysPending)
 
     // ── Inspector stats (for HoD) ──
-    const { data: inspectorStats } = await supabase
+    let inspectorQuery = supabase
         .from('footplate_inspections')
         .select('inspected_by_name, inspected_by_role')
         .not('inspected_by_name', 'is', null)
+
+    if (role !== 'admin' && departmentEmployees.length > 0) {
+        inspectorQuery = inspectorQuery.in('employee_id', departmentEmployees.map(e => e.employee_id))
+    }
+
+    const { data: inspectorStats } = await inspectorQuery
 
     const inspectorCounts = new Map<string, number>()
     inspectorStats?.forEach(i => {
@@ -150,26 +172,41 @@ export default async function DashboardPage() {
 
     // ── Monthly inspection count ──
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
-    const { count: monthlyInspections } = await supabase
+    let monthlyInspectionsQuery = supabase
         .from('footplate_inspections')
         .select('*', { count: 'exact', head: true })
         .gte('inspection_date', monthStart)
+    
+    if (role !== 'admin' && departmentEmployees.length > 0) {
+        monthlyInspectionsQuery = monthlyInspectionsQuery.in('employee_id', departmentEmployees.map(e => e.employee_id))
+    }
+    const { count: monthlyInspections } = await monthlyInspectionsQuery
 
     // ── Pending ack count ──
-    const { count: pendingAcks } = await supabase
+    let pendingAcksQuery = supabase
         .from('instruction_acknowledgements')
         .select('*', { count: 'exact', head: true })
         .is('acknowledged_at', null)
+    
+    if (role !== 'admin' && departmentEmployees.length > 0) {
+        pendingAcksQuery = pendingAcksQuery.in('employee_id', departmentEmployees.map(e => e.employee_id))
+    }
+    const { count: pendingAcks } = await pendingAcksQuery
 
     // ── Recent Line Defects (for crew controllers, managers, HOD, admin) ──
     const showLineDefects = role === 'admin' || role === 'hod' || role === 'manager' || isCrewController
-    const { data: recentLineDefects } = showLineDefects
-        ? await supabase
-            .from('line_defects')
-            .select('id, emp_name, emp_id, failure_related_to, location, details, reported_at, status')
-            .order('reported_at', { ascending: false })
-            .limit(5)
-        : { data: null }
+    
+    let lineDefectsQuery = supabase
+        .from('line_defects')
+        .select('id, emp_name, emp_id, failure_related_to, location, details, reported_at, status')
+        .order('reported_at', { ascending: false })
+        .limit(5)
+    
+    if (role !== 'admin' && departmentEmployees.length > 0) {
+        lineDefectsQuery = lineDefectsQuery.in('emp_id', departmentEmployees.map(e => e.employee_id))
+    }
+
+    const { data: recentLineDefects } = showLineDefects ? await lineDefectsQuery : { data: null }
 
     // ── Expiring Competencies (expires in 90 days or less) ──
     const showExpiringCompetencies = role === 'admin' || role === 'hod' || role === 'manager' || role === 'roster_planners'
@@ -620,24 +657,7 @@ export default async function DashboardPage() {
                         </Card>
                     )}
 
-                    {/* Quick Actions */}
-                    <Card>
-                        <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
-                        <CardContent className="space-y-2">
-                            <Link href={inspectionLink} className="block w-full p-3 hover:bg-slate-100 rounded-md border text-sm font-medium transition-colors">
-                                <ClipboardCheck className="h-4 w-4 inline mr-2" /> {inspectionLabel}
-                            </Link>
-                            <Link href="/employees" className="block w-full p-3 hover:bg-slate-100 rounded-md border text-sm font-medium transition-colors">
-                                <Users className="h-4 w-4 inline mr-2" /> View Employees
-                            </Link>
-                            <Link href="/reports/instruction-ack" className="block w-full p-3 hover:bg-slate-100 rounded-md border text-sm font-medium transition-colors">
-                                <FileText className="h-4 w-4 inline mr-2" /> Assurance Ack Report
-                            </Link>
-                            <Link href="/reports/inspection-stats" className="block w-full p-3 hover:bg-slate-100 rounded-md border text-sm font-medium transition-colors">
-                                <BarChart3 className="h-4 w-4 inline mr-2" /> Inspection Statistics
-                            </Link>
-                        </CardContent>
-                    </Card>
+
                 </div>
             </div>
 

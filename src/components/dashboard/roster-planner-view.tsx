@@ -340,26 +340,7 @@ export function RosterPlannerDashboardView({ department, allowedEmployeeIds }: R
                     </div>
                 </Card>
 
-                {/* Quick Actions */}
-                <Card className="shadow-sm h-full">
-                    <CardHeader className="pb-2 border-b">
-                        <CardTitle className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Quick Actions</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4 space-y-3">
-                        <Link href="/employees" className="flex items-center gap-3 w-full p-4 hover:bg-red-50 rounded-lg border border-slate-100 text-sm font-semibold transition-all group">
-                            <div className="bg-red-100 p-2 rounded-md group-hover:bg-red-600 group-hover:text-white transition-colors">
-                                <Users className="h-5 w-5" />
-                            </div>
-                            <span className="text-slate-700">View Employees</span>
-                        </Link>
-                        <Link href="/roster-analytics/trends" className="flex items-center gap-3 w-full p-4 hover:bg-blue-50 rounded-lg border border-slate-100 text-sm font-semibold transition-all group">
-                            <div className="bg-blue-100 p-2 rounded-md group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                <TrendingUp className="h-5 w-5" />
-                            </div>
-                            <span className="text-slate-700">Historical Trends</span>
-                        </Link>
-                    </CardContent>
-                </Card>
+
 
                 {/* Expiring Competencies — Full Width */}
                 {expiringCompetencies.length > 0 && (

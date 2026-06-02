@@ -48,10 +48,23 @@ export default async function CounsellingReportPage() {
     // Since we'll let the client fetch data dynamically based on date range, 
     // we don't need to load all records here. We'll just pass access flags.
 
+    // Get department
+    let userDept = 'all'
+    if (profile.employee_id) {
+        const { data: emp } = await supabase
+            .from('employees')
+            .select('department')
+            .eq('employee_id', profile.employee_id)
+            .single()
+        if (emp) userDept = emp.department || 'all'
+    }
+
     return (
         <CounsellingReportClient 
             canViewIndividual={canViewIndividual} 
-            canViewGeneral={canViewGeneral} 
+            canViewGeneral={canViewGeneral}
+            userDept={userDept}
+            isAdmin={role === 'admin'}
         />
     )
 }

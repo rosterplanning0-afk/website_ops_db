@@ -12,9 +12,11 @@ import * as XLSX from 'xlsx'
 interface CounsellingReportClientProps {
     canViewIndividual: boolean
     canViewGeneral: boolean
+    userDept: string
+    isAdmin: boolean
 }
 
-export function CounsellingReportClient({ canViewIndividual, canViewGeneral }: CounsellingReportClientProps) {
+export function CounsellingReportClient({ canViewIndividual, canViewGeneral, userDept, isAdmin }: CounsellingReportClientProps) {
     const [reportType, setReportType] = useState<'individual' | 'general'>(canViewIndividual ? 'individual' : 'general')
     const [dateFrom, setDateFrom] = useState('')
     const [dateTo, setDateTo] = useState('')
@@ -32,17 +34,23 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral }: C
         const supabase = createClient()
 
         if (reportType === 'individual') {
-            const { data: records, error } = await supabase
+            let query = supabase
                 .from('employee_counselling')
                 .select(`
                     id, counselling_date, category, reason, score, remarks,
                     employee_id,
-                    employees (name, department, designation),
+                    employees!inner (name, department, designation),
                     users:counselled_by (full_name)
                 `)
                 .gte('counselling_date', dateFrom)
                 .lte('counselling_date', dateTo)
                 .order('counselling_date', { ascending: false })
+
+            if (!isAdmin && userDept !== 'all') {
+                query = query.eq('employees.department', userDept)
+            }
+
+            const { data: records, error } = await query
 
             if (error) {
                 alert('Failed to fetch individual counselling records: ' + error.message)
@@ -51,17 +59,23 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral }: C
                 setHasSearched(true)
             }
         } else {
-            const { data: records, error } = await supabase
+            let query = supabase
                 .from('general_counselling_records')
                 .select(`
                     id, counselling_date, time_from, time_to, place, areas_for_improvement,
                     employee_id,
-                    employees (name, department, designation),
+                    employees!inner (name, department, designation),
                     general_counselling_sessions (topic, created_by)
                 `)
                 .gte('counselling_date', dateFrom)
                 .lte('counselling_date', dateTo)
                 .order('counselling_date', { ascending: false })
+            
+            if (!isAdmin && userDept !== 'all') {
+                query = query.eq('employees.department', userDept)
+            }
+
+            const { data: records, error } = await query
 
             if (error) {
                 alert('Failed to fetch general counselling records: ' + error.message)
