@@ -1,33 +1,33 @@
-export function rateLimit(options: { interval: number; uniqueTokenPerInterval: number }) {
-    const tokenCache = new Map<string, number[]>();
+import { LRUCache } from 'lru-cache'
+import { NextResponse } from 'next/server'
 
-    return {
-        check: (limit: number, token: string) =>
-            new Promise<void>((resolve, reject) => {
-                const tokenCount = tokenCache.get(token) || [0];
-                if (tokenCount[0] === 0) {
-                    tokenCache.set(token, tokenCount);
-                }
-                tokenCount[0] += 1;
-
-                const currentUsage = tokenCount[0];
-                const isRateLimited = currentUsage >= limit;
-
-                // Cleanup interval
-                setTimeout(() => {
-                    tokenCount[0] -= 1;
-                }, options.interval);
-
-                if (isRateLimited) {
-                    reject('Rate limit exceeded');
-                } else {
-                    resolve();
-                }
-            }),
-    };
+interface RateLimiterOptions {
+    limit: number
+    windowMs: number
 }
 
-export const limiter = rateLimit({
-    interval: 60000, // 60 seconds
-    uniqueTokenPerInterval: 500, // Max 500 users per second
-});
+const tokenCache = new LRUCache<string, number>({
+    max: 500, // Maximum number of users to track
+    ttl: 60000, // Default TTL
+})
+
+export function rateLimit(request: Request, options: RateLimiterOptions) {
+    const ip = request.headers.get('x-forwarded-for') ?? 
+               request.headers.get('x-real-ip') ?? 
+               '127.0.0.1'
+
+    const tokenCount = tokenCache.get(ip) || 0
+
+    if (tokenCount >= options.limit) {
+        return {
+            success: false,
+            response: NextResponse.json(
+                { error: 'Too many requests, please try again later.' },
+                { status: 429 }
+            )
+        }
+    }
+
+    tokenCache.set(ip, tokenCount + 1, { ttl: options.windowMs })
+    return { success: true }
+}

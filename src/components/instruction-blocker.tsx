@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import useSWR from 'swr'
 import { createClient } from '@/utils/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -15,17 +16,73 @@ interface PendingInstruction {
     created_at: string
 }
 
+async function fetchPending(userId: string) {
+    const supabase = createClient()
+
+    // 1. Get employee_id and designation
+    const { data: userProfile } = await supabase.from('users').select('employee_id').eq('id', userId).single()
+    if (!userProfile?.employee_id) return []
+
+    const { data: empRecord } = await supabase.from('employees').select('designation').eq('employee_id', userProfile.employee_id).single()
+    if (!empRecord?.designation) return []
+
+    const empId = userProfile.employee_id
+    const designation = empRecord.designation
+
+    // 2. Get all active instructions for this designation (including All Staff)
+    const { data: assigned } = await supabase
+        .from('instruction_designation_assignments')
+        .select(`
+            instruction_id, 
+            instructions!inner(
+                id, title, content, created_at, is_active, file_url,
+                creator:employees(name, designation),
+                instruction_designation_assignments(designation)
+            )
+        `)
+        .in('designation', [designation, 'All Staff'])
+        .eq('instructions.is_active', true)
+
+    if (!assigned || assigned.length === 0) return []
+
+    const allAssignedInstructions = assigned.map((a: any) => a.instructions)
+
+    // 3. Get all existing acknowledgements for this employee
+    const { data: acks } = await supabase
+        .from('instruction_acknowledgements')
+        .select('instruction_id')
+        .eq('employee_id', empId)
+
+    const ackedIds = new Set(acks?.map(a => a.instruction_id) || [])
+
+    // 4. Find pending instructions (assigned but not in acks)
+    const pendingInstructions = allAssignedInstructions.filter(inst => !ackedIds.has(inst.id))
+
+    if (pendingInstructions.length > 0) {
+        // Sort by oldest first so they acknowledge them in chronological order
+        pendingInstructions.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    }
+
+    return pendingInstructions
+}
+
 export function InstructionBlocker({ userId }: { userId: string }) {
-    const [pending, setPending] = useState<PendingInstruction[]>([])
     const [currentIndex, setCurrentIndex] = useState(0)
     const [loading, setLoading] = useState(false)
     const [open, setOpen] = useState(false)
     const pathname = usePathname()
     const router = useRouter()
 
-    useEffect(() => {
-        fetchPending()
-    }, [userId])
+    const { data: pending = [], mutate } = useSWR(
+        userId ? `pending-instructions-${userId}` : null,
+        () => fetchPending(userId),
+        {
+            revalidateOnFocus: true,
+            onSuccess: (data) => {
+                if (data.length > 0) setOpen(true)
+            }
+        }
+    )
 
     // Redirect to dashboard if pending and on another page
     useEffect(() => {
@@ -33,56 +90,6 @@ export function InstructionBlocker({ userId }: { userId: string }) {
             router.replace('/dashboard')
         }
     }, [open, pending.length, pathname, router])
-
-    async function fetchPending() {
-        const supabase = createClient()
-
-        // 1. Get employee_id and designation
-        const { data: userProfile } = await supabase.from('users').select('employee_id').eq('id', userId).single()
-        if (!userProfile?.employee_id) return
-
-        const { data: empRecord } = await supabase.from('employees').select('designation').eq('employee_id', userProfile.employee_id).single()
-        if (!empRecord?.designation) return
-
-        const empId = userProfile.employee_id
-        const designation = empRecord.designation
-
-        // 2. Get all active instructions for this designation (including All Staff)
-        const { data: assigned } = await supabase
-            .from('instruction_designation_assignments')
-            .select(`
-                instruction_id, 
-                instructions!inner(
-                    id, title, content, created_at, is_active, file_url,
-                    creator:employees(name, designation),
-                    instruction_designation_assignments(designation)
-                )
-            `)
-            .in('designation', [designation, 'All Staff'])
-            .eq('instructions.is_active', true)
-
-        if (!assigned || assigned.length === 0) return
-
-        const allAssignedInstructions = assigned.map((a: any) => a.instructions)
-
-        // 3. Get all existing acknowledgements for this employee
-        const { data: acks } = await supabase
-            .from('instruction_acknowledgements')
-            .select('instruction_id')
-            .eq('employee_id', empId)
-
-        const ackedIds = new Set(acks?.map(a => a.instruction_id) || [])
-
-        // 4. Find pending instructions (assigned but not in acks)
-        const pendingInstructions = allAssignedInstructions.filter(inst => !ackedIds.has(inst.id))
-
-        if (pendingInstructions.length > 0) {
-            // Sort by oldest first so they acknowledge them in chronological order
-            pendingInstructions.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-            setPending(pendingInstructions)
-            setOpen(true)
-        }
-    }
 
     async function handleAcknowledge(instructionId: string) {
         setLoading(true)
@@ -106,7 +113,7 @@ export function InstructionBlocker({ userId }: { userId: string }) {
             setCurrentIndex((prev) => prev + 1)
         } else {
             setOpen(false)
-            setPending([])
+            mutate([])
         }
         setLoading(false)
     }

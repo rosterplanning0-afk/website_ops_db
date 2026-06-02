@@ -1,12 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextResponse } from 'next/server'
-import { limiter } from '@/lib/rate-limit'
+import { rateLimit } from '@/lib/rate-limit'
 import { DEPT_CREW_MAPPING } from '@/lib/rbac'
 
 export async function POST(req: Request) {
     try {
-        const ip = req.headers.get('x-forwarded-for') ?? '127.0.0.1'
-        await limiter.check(60, ip)
+        const rateLimitRes = rateLimit(req, { limit: 120, windowMs: 60000 })
+        if (!rateLimitRes.success) return rateLimitRes.response
 
         const supabase = await createClient()
         

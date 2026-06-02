@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z, ZodError } from 'zod'
-import { limiter } from '@/lib/rate-limit'
+import { rateLimit } from '@/lib/rate-limit'
 import { createClient } from '@/utils/supabase/server'
 import { uploadFileToDrive } from '@/utils/google-drive'
 
@@ -15,8 +15,8 @@ const CreateInstructionPayload = z.object({
 
 export async function GET(req: Request) {
     try {
-        const ip = req.headers.get('x-forwarded-for') ?? '127.0.0.1'
-        await limiter.check(60, ip)
+        const rateLimitRes = rateLimit(req, { limit: 60, windowMs: 60000 })
+        if (!rateLimitRes.success) return rateLimitRes.response
 
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
@@ -30,15 +30,14 @@ export async function GET(req: Request) {
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
         return NextResponse.json({ data })
     } catch (error) {
-        if (error === 'Rate limit exceeded') return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 })
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
     }
 }
 
 export async function POST(req: Request) {
     try {
-        const ip = req.headers.get('x-forwarded-for') ?? '127.0.0.1'
-        await limiter.check(60, ip)
+        const rateLimitRes = rateLimit(req, { limit: 60, windowMs: 60000 })
+        if (!rateLimitRes.success) return rateLimitRes.response
 
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
@@ -143,7 +142,6 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ data: instruction }, { status: 201 })
     } catch (error) {
-        if (error === 'Rate limit exceeded') return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 })
         if (error instanceof ZodError) {
             const firstError = (error as any).errors[0]?.message || 'Invalid input'
             return NextResponse.json({ error: firstError, details: (error as any).flatten().fieldErrors }, { status: 400 })

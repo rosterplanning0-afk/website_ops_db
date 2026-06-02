@@ -61,8 +61,8 @@ export default async function DashboardPage() {
     const userDepartment = empData?.department || 'all'
     const deptLower = userDepartment.toLowerCase()
 
-    let inspectionLink = '/train-operations/inspection'
-    let inspectionLabel = 'New TO Inspection'
+    let inspectionLink = '/train-operations/new-inspection'
+    let inspectionLabel = 'New Inspection Form'
 
     if (deptLower.includes('occ')) {
         inspectionLink = '/occ/inspection'
@@ -70,11 +70,6 @@ export default async function DashboardPage() {
     } else if (deptLower.includes('station')) {
         inspectionLink = '/station-control/inspection'
         inspectionLabel = 'New Station Inspection'
-    }
-
-    if (isLineInspector) {
-        inspectionLink = '/train-operations/new-inspection'
-        inspectionLabel = 'New Inspection Form'
     }
 
     // ── Shared data fetches ──

@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { createClient } from '@/utils/supabase/client'
 import { FileText, CheckCircle } from 'lucide-react'
 import { InstructionDialog } from './instruction-dialog'
@@ -9,73 +10,63 @@ interface InstructionListProps {
     userId: string
 }
 
+async function fetchInstructions(userId: string) {
+    const supabase = createClient()
+
+    // 1. Get user designation
+    const { data: userProfile } = await supabase.from('users').select('employee_id').eq('id', userId).single()
+    if (!userProfile?.employee_id) return { instructions: [], empId: null }
+
+    const { data: empRecord } = await supabase.from('employees').select('designation').eq('employee_id', userProfile.employee_id).single()
+    if (!empRecord?.designation) return { instructions: [], empId: null }
+
+    const designation = empRecord.designation
+    const empId = userProfile.employee_id
+
+    // 2. Fetch assigned active instructions
+    const { data: assigned } = await supabase
+        .from('instruction_designation_assignments')
+        .select(`
+            instruction_id, 
+            instructions!inner(id, title, priority, created_at, is_active)
+        `)
+        .in('designation', [designation, 'All Staff'])
+        .eq('instructions.is_active', true)
+
+    if (!assigned || assigned.length === 0) return { instructions: [], empId }
+
+    const allAssigned = assigned.map((a: any) => a.instructions)
+    allAssigned.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    // 3. Get acknowledgements
+    const { data: acks } = await supabase
+        .from('instruction_acknowledgements')
+        .select('instruction_id')
+        .eq('employee_id', empId)
+
+    const ackedIds = new Set(acks?.map(a => a.instruction_id) || [])
+
+    const finalInstructions = allAssigned.map(inst => ({
+        ...inst,
+        acknowledged: ackedIds.has(inst.id),
+        employee_id: empId
+    }))
+
+    return { instructions: finalInstructions, empId }
+}
+
 export function DashboardInstructionList({ userId }: InstructionListProps) {
-    const [instructions, setInstructions] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
     const [selectedId, setSelectedId] = useState<string | null>(null)
 
-    useEffect(() => {
-        if (userId) load()
-    }, [userId])
+    const { data, isLoading, mutate } = useSWR(
+        userId ? `dashboard-instructions-${userId}` : null,
+        () => fetchInstructions(userId),
+        { revalidateOnFocus: true }
+    )
 
-    async function load() {
-        setLoading(true)
-        const supabase = createClient()
+    const instructions = data?.instructions || []
 
-        // 1. Get user designation
-        const { data: userProfile } = await supabase.from('users').select('employee_id').eq('id', userId).single()
-        if (!userProfile?.employee_id) {
-            setLoading(false)
-            return
-        }
-
-        const { data: empRecord } = await supabase.from('employees').select('designation').eq('employee_id', userProfile.employee_id).single()
-        if (!empRecord?.designation) {
-            setLoading(false)
-            return
-        }
-
-        const designation = empRecord.designation
-        const empId = userProfile.employee_id
-
-        // 2. Fetch assigned active instructions (including those for All Staff)
-        const { data: assigned } = await supabase
-            .from('instruction_designation_assignments')
-            .select(`
-                instruction_id, 
-                instructions!inner(id, title, priority, created_at, is_active)
-            `)
-            .in('designation', [designation, 'All Staff'])
-            .eq('instructions.is_active', true)
-
-        if (!assigned || assigned.length === 0) {
-            setInstructions([])
-            setLoading(false)
-            return
-        }
-
-        const allAssigned = assigned.map((a: any) => a.instructions)
-        allAssigned.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-        // 3. Get acknowledgements
-        const { data: acks } = await supabase
-            .from('instruction_acknowledgements')
-            .select('instruction_id')
-            .eq('employee_id', empId)
-
-        const ackedIds = new Set(acks?.map(a => a.instruction_id) || [])
-
-        const finalInstructions = allAssigned.map(inst => ({
-            ...inst,
-            acknowledged: ackedIds.has(inst.id),
-            employee_id: empId
-        }))
-
-        setInstructions(finalInstructions)
-        setLoading(false)
-    }
-
-    if (loading) return <p className="text-sm text-muted-foreground text-center py-4">Loading assurance...</p>
+    if (isLoading) return <p className="text-sm text-muted-foreground text-center py-4">Loading assurance...</p>
     if (instructions.length === 0) return <p className="text-sm text-muted-foreground text-center py-4">No assurance found for your designation.</p>
 
     return (
@@ -116,8 +107,8 @@ export function DashboardInstructionList({ userId }: InstructionListProps) {
                 instructionId={selectedId}
                 open={!!selectedId}
                 onOpenChange={(op) => !op && setSelectedId(null)}
-                employeeId={instructions[0]?.employee_id}
-                onAcknowledged={() => load()}
+                employeeId={data?.empId}
+                onAcknowledged={() => mutate()}
             />
         </>
     )

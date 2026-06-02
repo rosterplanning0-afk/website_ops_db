@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z, ZodError } from 'zod';
-import { limiter } from '@/lib/rate-limit';
+import { rateLimit } from '@/lib/rate-limit';
 import { createClient } from '@/utils/supabase/server';
 
 // Example Zod Schema
@@ -12,8 +12,8 @@ const ExampleSchema = z.object({
 export async function POST(req: Request) {
     try {
         // 1. IP Rate Limiting (Using x-forwarded-for or default)
-        const ip = req.headers.get('x-forwarded-for') ?? '127.0.0.1';
-        await limiter.check(60, ip); // 60 requests per minute
+        const rateLimitRes = rateLimit(req, { limit: 60, windowMs: 60000 });
+        if (!rateLimitRes.success) return rateLimitRes.response;
 
         // 2. Authentication check
         const supabase = await createClient();
@@ -32,9 +32,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, data: parsedData });
 
     } catch (error) {
-        if (error === 'Rate limit exceeded') {
-            return NextResponse.json({ error: 'Too Many Requests' }, { status: 429 });
-        }
         if (error instanceof ZodError) {
             return NextResponse.json({ error: 'Invalid input', details: error.flatten().fieldErrors }, { status: 400 });
         }
