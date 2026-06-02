@@ -113,7 +113,8 @@ export default async function DashboardPage() {
         instructionsQuery = instructionsQuery.eq('instruction_designation_assignments.designation', 'All Staff')
     }
 
-    const { data: latestInstructions } = await instructionsQuery
+    const { data: rawInstructions } = await instructionsQuery
+    const latestInstructions: any[] = rawInstructions || []
 
     // Calculate Designation & Gender Breakdowns
     const designationBreakdown = departmentEmployees.reduce((acc, emp) => {
