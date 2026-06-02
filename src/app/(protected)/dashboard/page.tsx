@@ -204,11 +204,16 @@ export default async function DashboardPage() {
     // ═══════════════════════════
     if (role === 'employee') {
         const { data: myCounselling } = profile?.employee_id
-            ? await supabase.from('employee_counselling').select(`
-                id, counselling_date, reason, remarks, counselled_by, category, score,
-                users:counselled_by (full_name)
-            `).eq('employee_id', profile.employee_id).order('counselling_date', { ascending: false }).limit(5)
+            ? await supabase.from('employee_counselling').select('score').eq('employee_id', profile.employee_id)
             : { data: [] }
+
+        let goodScore = 0;
+        let badScore = 0;
+        myCounselling?.forEach(rec => {
+            if ((rec.score || 0) > 0) goodScore += rec.score;
+            if ((rec.score || 0) < 0) badScore += rec.score;
+        });
+        const netScore = goodScore + badScore;
 
         return (
             <div className="space-y-6">
@@ -242,34 +247,29 @@ export default async function DashboardPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            {myCounselling && myCounselling.length > 0 ? (
-                                <ul className="space-y-3">
-                                    {myCounselling.map(rec => (
-                                        <li key={rec.id} className="p-3 bg-slate-50 rounded-md border border-slate-100">
-                                            <div className="flex justify-between items-start mb-1">
-                                                <span className="font-semibold text-sm text-slate-800">{rec.reason}</span>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${rec.category === 'Bad' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                                        {rec.category || 'Good'}
-                                                    </span>
-                                                    <span className="text-xs text-slate-500 font-medium whitespace-nowrap" suppressHydrationWarning>
-                                                        {formatSafeDate(rec.counselling_date)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <p className={`text-xs font-bold mb-1 ${rec.score < 0 ? 'text-red-500' : 'text-green-500'}`}>
-                                                Score: {rec.score > 0 ? `+${rec.score}` : rec.score || (rec.category === 'Bad' ? -1 : 1)}
-                                            </p>
-                                            {rec.remarks && <p className="text-xs text-slate-600 mb-2">{rec.remarks}</p>}
-                                            <div className="text-[10px] text-slate-400 font-medium">
-                                                Counselled by: {(rec.users as any)?.full_name || 'Admin'}
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p className="text-sm text-muted-foreground text-center py-6">No recent counselling records.</p>
-                            )}
+                            <div className="grid grid-cols-3 gap-4 mb-4 text-center">
+                                <div className="p-4 bg-green-50 rounded-lg border border-green-100">
+                                    <p className="text-xs font-bold text-green-700 uppercase tracking-wider mb-1">Good</p>
+                                    <p className="text-2xl font-black text-green-600">+{goodScore}</p>
+                                </div>
+                                <div className="p-4 bg-red-50 rounded-lg border border-red-100">
+                                    <p className="text-xs font-bold text-red-700 uppercase tracking-wider mb-1">Bad</p>
+                                    <p className="text-2xl font-black text-red-600">{badScore}</p>
+                                </div>
+                                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                    <p className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Net</p>
+                                    <p className={`text-2xl font-black ${netScore > 0 ? 'text-green-600' : netScore < 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                                        {netScore > 0 ? `+${netScore}` : netScore}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="border-t pt-4 text-center">
+                                <Link href="/counselling/my-counselling">
+                                    <Button variant="outline" className="w-full font-medium">
+                                        View Detailed Counselling History
+                                    </Button>
+                                </Link>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

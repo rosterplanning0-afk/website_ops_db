@@ -51,6 +51,22 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, is
     })
     const [loading, setLoading] = useState(false)
     const [hasAccess, setHasAccess] = useState(true)
+    const [potentialManagers, setPotentialManagers] = useState<{employee_id: string, name: string, designation: string}[]>([])
+
+    useEffect(() => {
+        const fetchManagers = async () => {
+            const supabase = createClient()
+            const { data } = await supabase.from('employees')
+                .select('employee_id, name, designation')
+                .in('role', ['manager', 'hod', 'cxo', 'admin', 'roster_planners'])
+                .eq('status', 'Active')
+                .order('name')
+            if (data) setPotentialManagers(data)
+        }
+        if (open) {
+            fetchManagers()
+        }
+    }, [open])
 
     useEffect(() => {
         if (!employee) return
@@ -220,12 +236,20 @@ export function EditEmployeeDialog({ employee, open, onOpenChange, onSuccess, is
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="manager_id">Manager ID</Label>
-                        <Input 
-                            id="manager_id" 
-                            value={formData.manager_id} 
-                            onChange={e => handleChange('manager_id', e.target.value)} 
+                        <select
+                            id="manager_id"
+                            value={formData.manager_id || ''}
+                            onChange={e => handleChange('manager_id', e.target.value)}
                             disabled={!hasAccess}
-                        />
+                            className={`w-full border border-input rounded-md p-2 text-sm ${!hasAccess ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'}`}
+                        >
+                            <option value="">No Manager / Unassigned</option>
+                            {potentialManagers.map(mgr => (
+                                <option key={mgr.employee_id} value={mgr.employee_id}>
+                                    {mgr.name} ({mgr.employee_id}) - {mgr.designation || 'Manager'}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="status">Status</Label>

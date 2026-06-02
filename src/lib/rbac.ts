@@ -86,7 +86,6 @@ export const sidebarConfig: SidebarItem[] = [
         children: [
             { label: 'Employee List', href: '/employees', icon: 'List', roles: ['admin', 'cxo', 'roster_planners'] },
             { label: 'Assign Manager', href: '/employees/assign-manager', icon: 'UserPlus', roles: ['admin'] },
-            { label: 'Employee Profile', href: '/employees/profile', icon: 'UserCircle', roles: '*' },
             { label: 'Competency Register', href: '/employees/competency', icon: 'BookOpen', roles: ['admin', 'hod', 'roster_planners'] },
         ],
     },
@@ -145,6 +144,7 @@ export const sidebarConfig: SidebarItem[] = [
             { label: 'Assurance Ack Sheet', href: '/reports/instruction-ack-sheet', icon: 'FileText', roles: ['admin', 'hod', 'manager'] },
             { label: 'Inspection Statistics', href: '/reports/inspection-stats', icon: 'TrendingUp', roles: ['admin', 'hod', 'manager'] },
             { label: 'Competency Report', href: '/reports/competency', icon: 'History', roles: ['admin', 'hod', 'manager', 'roster_planners'] },
+            { label: 'Counselling Report', href: '/reports/counselling', icon: 'MessageCircle', roles: ['admin', 'hod', 'manager', 'roster_planners'] },
         ],
     },
     {

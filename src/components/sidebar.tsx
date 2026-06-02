@@ -39,9 +39,10 @@ export function Sidebar({ userRole, userDepartment, userName, userEmail, accessO
 
     function toggleGroup(label: string) {
         setExpandedGroups((prev) => {
-            const next = new Set(prev)
-            if (next.has(label)) next.delete(label)
-            else next.add(label)
+            const next = new Set<string>()
+            if (!prev.has(label)) {
+                next.add(label)
+            }
             return next
         })
     }

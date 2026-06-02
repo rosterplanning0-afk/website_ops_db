@@ -26,6 +26,12 @@ interface EmployeeRow {
     manager_name: string | null
 }
 
+interface ManagerOption {
+    employee_id: string
+    name: string
+    designation: string
+}
+
 interface HistoryRow {
     id: string
     manager_id: string
@@ -45,16 +51,21 @@ export default function AssignManagerPage() {
     
     const [employees, setEmployees] = useState<EmployeeRow[]>([])
     const [searchQuery, setSearchQuery] = useState('')
+    const [potentialManagers, setPotentialManagers] = useState<ManagerOption[]>([])
     
+    // Bulk Selection State
+    const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set())
+
     // Assignment Modal State
     const [isAssignOpen, setIsAssignOpen] = useState(false)
-    const [selectedEmp, setSelectedEmp] = useState<EmployeeRow | null>(null)
+    const [targetEmps, setTargetEmps] = useState<EmployeeRow[]>([])
     const [newManagerId, setNewManagerId] = useState('')
     const [saving, setSaving] = useState(false)
     const [successMsg, setSuccessMsg] = useState('')
 
     // History Modal State
     const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+    const [selectedEmpForHistory, setSelectedEmpForHistory] = useState<EmployeeRow | null>(null)
     const [historyLogs, setHistoryLogs] = useState<HistoryRow[]>([])
     const [loadingHistory, setLoadingHistory] = useState(false)
 
@@ -98,6 +109,16 @@ export default function AssignManagerPage() {
         setScope({ isAdmin, department_scope: deptScope, designation_scope: desigScope })
         setAuthorized(true)
 
+        // Load potential managers
+        // We consider 'manager', 'hod', 'cxo', 'admin', 'roster_planners' as potential managers.
+        const { data: mgrs } = await supabase.from('employees')
+            .select('employee_id, name, designation')
+            .in('role', ['manager', 'hod', 'cxo', 'admin', 'roster_planners'])
+            .eq('status', 'Active')
+            .order('name')
+        
+        if (mgrs) setPotentialManagers(mgrs)
+
         // Load employees within scope
         let query = supabase.from('employees').select(`
             employee_id, name, designation, department, manager_id
@@ -110,8 +131,7 @@ export default function AssignManagerPage() {
 
         const { data: emps } = await query.order('name')
         
-        // We will fetch names for managers
-        const allEmpIds = emps?.map(e => e.employee_id) || []
+        // We will fetch names for current managers
         const managerIds = [...new Set(emps?.map(e => e.manager_id).filter(Boolean))] as string[]
         
         // Fetch manager names (even if they are outside current scope)
@@ -133,32 +153,35 @@ export default function AssignManagerPage() {
 
     async function handleAssignManager(e: React.FormEvent) {
         e.preventDefault()
-        if (!selectedEmp || !newManagerId) return
+        if (targetEmps.length === 0 || !newManagerId) return
 
         setSaving(true)
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        // Validate manager exists
-        const { data: mgrCheck } = await supabase.from('employees').select('employee_id, name').eq('employee_id', newManagerId).single()
+        // Validate manager exists from potentialManagers list
+        const mgrCheck = potentialManagers.find(m => m.employee_id === newManagerId)
         if (!mgrCheck) {
-            alert('Manager Employee ID not found in the system!')
+            alert('Manager Employee ID not found in the valid list!')
             setSaving(false)
             return
         }
 
-        // 1. Close current active assignment in history
+        const targetIds = targetEmps.map(emp => emp.employee_id)
+
+        // 1. Close current active assignments in history
         await supabase.from('employee_manager_history')
             .update({ valid_to: new Date().toISOString() })
-            .eq('employee_id', selectedEmp.employee_id)
+            .in('employee_id', targetIds)
             .is('valid_to', null)
 
-        // 2. Insert new assignment history
-        const { error: histError } = await supabase.from('employee_manager_history').insert({
-            employee_id: selectedEmp.employee_id,
+        // 2. Insert new assignment history for all
+        const historyInserts = targetIds.map(empId => ({
+            employee_id: empId,
             manager_id: mgrCheck.employee_id,
             assigned_by: user.id
-        })
+        }))
+        const { error: histError } = await supabase.from('employee_manager_history').insert(historyInserts)
 
         if (histError) {
             alert('Failed to log assignment history: ' + histError.message)
@@ -169,14 +192,15 @@ export default function AssignManagerPage() {
         // 3. Update the quick manager_id pointer
         const { error: updateError } = await supabase.from('employees')
             .update({ manager_id: mgrCheck.employee_id })
-            .eq('employee_id', selectedEmp.employee_id)
+            .in('employee_id', targetIds)
 
         setSaving(false)
 
         if (!updateError) {
-            setSuccessMsg(`Successfully assigned ${mgrCheck.name} as manager for ${selectedEmp.name}`)
+            setSuccessMsg(`Successfully assigned ${mgrCheck.name} as manager for ${targetEmps.length} employee(s)`)
             setIsAssignOpen(false)
             setNewManagerId('')
+            setSelectedEmployeeIds(new Set())
             loadData() // Refresh board
             setTimeout(() => setSuccessMsg(''), 5000)
         } else {
@@ -185,7 +209,7 @@ export default function AssignManagerPage() {
     }
 
     async function viewHistory(employee: EmployeeRow) {
-        setSelectedEmp(employee)
+        setSelectedEmpForHistory(employee)
         setIsHistoryOpen(true)
         setLoadingHistory(true)
         setHistoryLogs([])
@@ -210,6 +234,23 @@ export default function AssignManagerPage() {
             })))
         }
         setLoadingHistory(false)
+    }
+
+    const toggleEmployeeSelection = (employeeId: string) => {
+        setSelectedEmployeeIds(prev => {
+            const next = new Set(prev)
+            if (next.has(employeeId)) next.delete(employeeId)
+            else next.add(employeeId)
+            return next
+        })
+    }
+
+    const toggleAllEmployees = () => {
+        if (selectedEmployeeIds.size === filteredEmployees.length) {
+            setSelectedEmployeeIds(new Set())
+        } else {
+            setSelectedEmployeeIds(new Set(filteredEmployees.map(e => e.employee_id)))
+        }
     }
 
     const filteredEmployees = employees.filter(e => 
@@ -242,14 +283,28 @@ export default function AssignManagerPage() {
                     </p>
                 </div>
                 
-                <div className="relative w-full sm:w-64">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                    <Input 
-                        placeholder="Search employee..." 
-                        className="pl-9"
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                    />
+                <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                    {selectedEmployeeIds.size > 0 && (
+                        <Button 
+                            className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white" 
+                            onClick={() => {
+                                setTargetEmps(employees.filter(e => selectedEmployeeIds.has(e.employee_id)))
+                                setNewManagerId('')
+                                setIsAssignOpen(true)
+                            }}
+                        >
+                            <UserPlus className="h-4 w-4 mr-2" /> Assign Manager to {selectedEmployeeIds.size}
+                        </Button>
+                    )}
+                    <div className="relative w-full sm:w-64">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                        <Input 
+                            placeholder="Search employee..." 
+                            className="pl-9"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -265,7 +320,15 @@ export default function AssignManagerPage() {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="pl-6">Employee</TableHead>
+                                    <TableHead className="w-[50px] pl-6">
+                                        <input 
+                                            type="checkbox" 
+                                            className="rounded border-slate-300"
+                                            checked={filteredEmployees.length > 0 && selectedEmployeeIds.size === filteredEmployees.length}
+                                            onChange={toggleAllEmployees}
+                                        />
+                                    </TableHead>
+                                    <TableHead>Employee</TableHead>
                                     <TableHead>Designation / Dept</TableHead>
                                     <TableHead>Current Manager</TableHead>
                                     <TableHead className="text-right pr-6">Actions</TableHead>
@@ -276,6 +339,14 @@ export default function AssignManagerPage() {
                                     filteredEmployees.map(emp => (
                                         <TableRow key={emp.employee_id}>
                                             <TableCell className="pl-6">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="rounded border-slate-300"
+                                                    checked={selectedEmployeeIds.has(emp.employee_id)}
+                                                    onChange={() => toggleEmployeeSelection(emp.employee_id)}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
                                                 <div className="font-medium text-slate-800">{emp.name}</div>
                                                 <div className="text-xs text-slate-500 font-mono">{emp.employee_id}</div>
                                             </TableCell>
@@ -298,7 +369,7 @@ export default function AssignManagerPage() {
                                                     <Button variant="outline" size="sm" onClick={() => viewHistory(emp)}>
                                                         <History className="h-4 w-4 mr-1" /> History
                                                     </Button>
-                                                    <Button size="sm" className="bg-slate-800 hover:bg-slate-900 text-white" onClick={() => { setSelectedEmp(emp); setNewManagerId(''); setIsAssignOpen(true) }}>
+                                                    <Button size="sm" className="bg-slate-800 hover:bg-slate-900 text-white" onClick={() => { setTargetEmps([emp]); setNewManagerId(''); setIsAssignOpen(true) }}>
                                                         <UserPlus className="h-4 w-4 mr-1" /> Assign
                                                     </Button>
                                                 </div>
@@ -307,7 +378,7 @@ export default function AssignManagerPage() {
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={4} className="text-center py-12 text-slate-500">
+                                        <TableCell colSpan={5} className="text-center py-12 text-slate-500">
                                             No employees found matching the search or delegation scope.
                                         </TableCell>
                                     </TableRow>
@@ -324,19 +395,29 @@ export default function AssignManagerPage() {
                     <DialogHeader>
                         <DialogTitle>Assign Manager</DialogTitle>
                         <DialogDescription>
-                            Assign a new manager to <span className="font-semibold text-slate-900">{selectedEmp?.name}</span> ({selectedEmp?.employee_id}).
+                            Assign a new manager to {targetEmps.length === 1 ? (
+                                <><span className="font-semibold text-slate-900">{targetEmps[0].name}</span> ({targetEmps[0].employee_id})</>
+                            ) : (
+                                <><span className="font-semibold text-slate-900">{targetEmps.length} selected employees</span></>
+                            )}.
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAssignManager} className="space-y-4 pt-4">
                         <div className="space-y-2">
-                            <Label>New Manager Employee ID</Label>
-                            <Input 
-                                placeholder="e.g. 77000001" 
+                            <Label>Select New Manager</Label>
+                            <select
+                                className="w-full border border-input rounded-md p-2 text-sm bg-white"
                                 value={newManagerId}
                                 onChange={e => setNewManagerId(e.target.value)}
                                 required
-                            />
-                            <p className="text-xs text-slate-500 pt-1">The system will verify this ID belongs to an active employee before saving.</p>
+                            >
+                                <option value="" disabled>Select a manager...</option>
+                                {potentialManagers.map(mgr => (
+                                    <option key={mgr.employee_id} value={mgr.employee_id}>
+                                        {mgr.name} ({mgr.employee_id}) - {mgr.designation || 'Manager'}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                         <div className="pt-4 flex justify-end gap-2">
                             <Button type="button" variant="outline" onClick={() => setIsAssignOpen(false)}>Cancel</Button>
@@ -356,7 +437,7 @@ export default function AssignManagerPage() {
                             <History className="h-5 w-5" /> Manager History
                         </DialogTitle>
                         <DialogDescription>
-                            Historical assignment chain for <span className="font-semibold text-slate-900">{selectedEmp?.name}</span> ({selectedEmp?.employee_id}).
+                            Historical assignment chain for <span className="font-semibold text-slate-900">{selectedEmpForHistory?.name}</span> ({selectedEmpForHistory?.employee_id}).
                         </DialogDescription>
                     </DialogHeader>
                     <div className="pt-4 max-h-[400px] overflow-y-auto">
