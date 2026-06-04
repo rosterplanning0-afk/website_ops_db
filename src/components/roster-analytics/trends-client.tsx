@@ -1,15 +1,19 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu'
+import { ChevronDown } from 'lucide-react'
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid,
     Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-import type { HistoricalMetricsRow } from '@/lib/roster-utils'
+import type { HistoricalMetricsRow, DailyRosterRow } from '@/lib/roster-utils'
+import { LEAVE_TYPES } from '@/lib/roster-utils'
+import { EmployeeLeaveReport } from '@/components/roster-analytics/employee-leave-report'
 
 function formatDate(d: Date): string {
     return d.toISOString().split('T')[0]
@@ -17,23 +21,68 @@ function formatDate(d: Date): string {
 
 interface TrendsClientProps {
     initialData: HistoricalMetricsRow[]
+    initialLeaveData?: Partial<DailyRosterRow>[]
     initialFromDate: string
     initialToDate: string
+    initialDept?: string
+    initialDesig?: string
+    initialLeaveType?: string
+    departments?: string[]
+    designations?: string[]
+    userRole?: string
+    userDept?: string
 }
 
-export function TrendsClient({ initialData, initialFromDate, initialToDate }: TrendsClientProps) {
+export function TrendsClient({ 
+    initialData, 
+    initialLeaveData = [], 
+    initialFromDate, 
+    initialToDate,
+    initialDept = '',
+    initialDesig = '',
+    initialLeaveType = '',
+    departments = [],
+    designations = [],
+    userRole = 'employee',
+    userDept = ''
+}: TrendsClientProps) {
     const router = useRouter()
+    const pathname = usePathname()
     const [fromDate, setFromDate] = useState<string>(initialFromDate)
     const [toDate, setToDate] = useState<string>(initialToDate)
     const [crewFilter, setCrewFilter] = useState<string>('all')
+    const [dept, setDept] = useState<string>(initialDept)
+    const [desig, setDesig] = useState<string[]>(initialDesig ? initialDesig.split(',') : [])
+    const [leaveType, setLeaveType] = useState<string[]>(initialLeaveType ? initialLeaveType.split(',') : [])
+    const [activeTab, setActiveTab] = useState<'trends' | 'leave-report'>('trends')
 
     useEffect(() => {
         setFromDate(initialFromDate)
         setToDate(initialToDate)
-    }, [initialFromDate, initialToDate])
+        setDept(initialDept)
+        setDesig(initialDesig ? initialDesig.split(',') : [])
+        setLeaveType(initialLeaveType ? initialLeaveType.split(',') : [])
+    }, [initialFromDate, initialToDate, initialDept, initialDesig, initialLeaveType])
 
-    const handleDateChange = () => {
-        router.push(`?from=${fromDate}&to=${toDate}`)
+    const applyFilters = (newFrom = fromDate, newTo = toDate, newDept = dept, newDesig = desig, newLeaveType = leaveType) => {
+        const params = new URLSearchParams()
+        if (newFrom) params.set('from', newFrom)
+        if (newTo) params.set('to', newTo)
+        if (newDept) params.set('dept', newDept)
+        if (newDesig.length > 0) params.set('desig', newDesig.join(','))
+        if (newLeaveType.length > 0) params.set('leaveType', newLeaveType.join(','))
+        router.push(`${pathname}?${params.toString()}`)
+    }
+
+    const handleToggle = (current: string[], value: string) => {
+        if (value === 'all') return []
+        let next = [...current]
+        if (next.includes(value)) {
+            next = next.filter(v => v !== value)
+        } else {
+            next.push(value)
+        }
+        return next
     }
 
     const data = initialData
@@ -72,46 +121,155 @@ export function TrendsClient({ initialData, initialFromDate, initialToDate }: Tr
 
     return (
         <div className="space-y-6">
+            {/* Tabs Header */}
+            <div className="flex border-b">
+                <button
+                    className={`px-4 py-2 font-medium text-sm focus:outline-none ${activeTab === 'trends' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    onClick={() => setActiveTab('trends')}
+                >
+                    Overview Trends
+                </button>
+                <button
+                    className={`px-4 py-2 font-medium text-sm focus:outline-none ${activeTab === 'leave-report' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                    onClick={() => setActiveTab('leave-report')}
+                >
+                    Employee Leave Report
+                </button>
+            </div>
+
             {/* Filters */}
             <Card>
                 <CardContent className="pt-6">
                     <div className="flex flex-wrap gap-4 items-center">
                         <div className="flex items-center gap-2">
                             <label className="text-sm text-slate-500">From:</label>
-                            <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} onBlur={handleDateChange} className="w-44" />
+                            <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} onBlur={() => applyFilters()} className="w-44" />
                         </div>
                         <div className="flex items-center gap-2">
                             <label className="text-sm text-slate-500">To:</label>
-                            <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} onBlur={handleDateChange} className="w-44" />
+                            <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} onBlur={() => applyFilters()} className="w-44" />
                         </div>
-                        <select
-                            className="border rounded-md px-3 py-2 text-sm bg-white"
-                            value={crewFilter}
-                            onChange={e => setCrewFilter(e.target.value)}
-                        >
-                            <option value="all">All Crew Types</option>
-                            {crewTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                        <div className="flex gap-2">
-                            {[7, 14, 30, 60].map(days => (
-                                <Button key={days} variant="outline" size="sm" onClick={() => {
-                                    const d = new Date(); d.setDate(d.getDate() - days)
-                                    const newFrom = formatDate(d)
-                                    const newTo = formatDate(new Date())
-                                    setFromDate(newFrom)
-                                    setToDate(newTo)
-                                    router.push(`?from=${newFrom}&to=${newTo}`)
-                                }}>
-                                    {days}d
+                        
+                        {/* Dept & Designation Filters (for Leave Report, but kept global) */}
+                        {userRole !== 'hod' && userRole !== 'manager' && (
+                            <select
+                                className="border rounded-md px-3 py-2 text-sm bg-white"
+                                value={dept}
+                                onChange={e => {
+                                    setDept(e.target.value)
+                                    applyFilters(fromDate, toDate, e.target.value, desig, leaveType)
+                                }}
+                            >
+                                <option value="">All Departments</option>
+                                {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                        )}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="w-48 justify-between bg-white text-sm font-normal">
+                                    {desig.length === 0 ? 'All Designations' : `${desig.length} Designations`}
+                                    <ChevronDown className="h-4 w-4 opacity-50" />
                                 </Button>
-                            ))}
-                        </div>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-56">
+                                <DropdownMenuCheckboxItem
+                                    checked={desig.length === 0}
+                                    onCheckedChange={() => {
+                                        const newDesig = handleToggle(desig, 'all')
+                                        setDesig(newDesig)
+                                        applyFilters(fromDate, toDate, dept, newDesig, leaveType)
+                                    }}
+                                >
+                                    All Designations
+                                </DropdownMenuCheckboxItem>
+                                {designations.map(d => (
+                                    <DropdownMenuCheckboxItem
+                                        key={d}
+                                        checked={desig.includes(d)}
+                                        onCheckedChange={() => {
+                                            const newDesig = handleToggle(desig, d)
+                                            setDesig(newDesig)
+                                            applyFilters(fromDate, toDate, dept, newDesig, leaveType)
+                                        }}
+                                    >
+                                        {d}
+                                    </DropdownMenuCheckboxItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {activeTab === 'leave-report' && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="w-48 justify-between bg-white text-sm font-normal">
+                                        {leaveType.length === 0 ? 'All Leaves & Absent' : `${leaveType.length} Selected`}
+                                        <ChevronDown className="h-4 w-4 opacity-50" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="w-56">
+                                    <DropdownMenuCheckboxItem
+                                        checked={leaveType.length === 0}
+                                        onCheckedChange={() => {
+                                            const newLeave = handleToggle(leaveType, 'all')
+                                            setLeaveType(newLeave)
+                                            applyFilters(fromDate, toDate, dept, desig, newLeave)
+                                        }}
+                                    >
+                                        All Leaves & Absent
+                                    </DropdownMenuCheckboxItem>
+                                    {[...LEAVE_TYPES, 'Absent'].map(l => (
+                                        <DropdownMenuCheckboxItem
+                                            key={l}
+                                            checked={leaveType.includes(l)}
+                                            onCheckedChange={() => {
+                                                const newLeave = handleToggle(leaveType, l)
+                                                setLeaveType(newLeave)
+                                                applyFilters(fromDate, toDate, dept, desig, newLeave)
+                                            }}
+                                        >
+                                            {l}
+                                        </DropdownMenuCheckboxItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
+
+                        {activeTab === 'trends' && (
+                            <select
+                                className="border rounded-md px-3 py-2 text-sm bg-white"
+                                value={crewFilter}
+                                onChange={e => setCrewFilter(e.target.value)}
+                            >
+                                <option value="all">All Crew Types</option>
+                                {crewTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                        )}
+                        {activeTab === 'trends' && (
+                            <div className="flex gap-2">
+                                {[7, 14, 30, 60].map(days => (
+                                    <Button key={days} variant="outline" size="sm" onClick={() => {
+                                        const d = new Date(); d.setDate(d.getDate() - days)
+                                        const newFrom = formatDate(d)
+                                        const newTo = formatDate(new Date())
+                                        setFromDate(newFrom)
+                                        setToDate(newTo)
+                                        applyFilters(newFrom, newTo, dept, desig, leaveType)
+                                    }}>
+                                        {days}d
+                                    </Button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Summary KPIs */}
-            {summary && (
+            {activeTab === 'leave-report' ? (
+                <EmployeeLeaveReport leaveData={initialLeaveData} />
+            ) : (
+                <>
+                    {/* Summary KPIs */}
+                    {summary && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <Card className="bg-blue-50">
                         <CardContent className="pt-4 pb-4">
@@ -220,6 +378,8 @@ export function TrendsClient({ initialData, initialFromDate, initialToDate }: Tr
                     </div>
                 </CardContent>
             </Card>
+                </>
+            )}
         </div>
     )
 }

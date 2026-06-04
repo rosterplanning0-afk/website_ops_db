@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { TrendsClient } from '@/components/roster-analytics/trends-client'
-import type { HistoricalMetricsRow } from '@/lib/roster-utils'
+import type { HistoricalMetricsRow, DailyRosterRow } from '@/lib/roster-utils'
 import { DEPT_CREW_MAPPING } from '@/lib/rbac'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +16,7 @@ function getDefaultFrom(): string {
     return formatDate(d)
 }
 
-export default async function HistoricalTrendsPage({ searchParams }: { searchParams: { from?: string, to?: string } }) {
+export default async function HistoricalTrendsPage({ searchParams }: { searchParams: Promise<{ from?: string, to?: string, dept?: string, desig?: string, leaveType?: string }> }) {
     const supabase = await createClient()
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -34,8 +34,12 @@ export default async function HistoricalTrendsPage({ searchParams }: { searchPar
         }
     }
 
-    const fromDate = searchParams.from || getDefaultFrom()
-    const toDate = searchParams.to || formatDate(new Date())
+    const resolvedParams = await searchParams;
+    const fromDate = resolvedParams.from || getDefaultFrom()
+    const toDate = resolvedParams.to || formatDate(new Date())
+    const deptParam = resolvedParams.dept || ''
+    const desigParam = resolvedParams.desig || ''
+    const leaveTypeParam = resolvedParams.leaveType || ''
 
     let query = supabase
         .from('v_historical_metrics')
@@ -51,13 +55,60 @@ export default async function HistoricalTrendsPage({ searchParams }: { searchPar
         }
     }
 
-    const { data: rows } = await query
+    const leaveTypeArray = leaveTypeParam ? leaveTypeParam.split(',') : []
+
+    // Leave report query
+    let leaveQuery = supabase
+        .from('v_daily_roster_summary')
+        .select('date, emp_id, name, department, designation, duty_category')
+        .gte('date', fromDate)
+        .lte('date', toDate)
+
+    if (leaveTypeArray.length > 0) {
+        leaveQuery = leaveQuery.in('duty_category', leaveTypeArray)
+    } else {
+        leaveQuery = leaveQuery.in('duty_category', [
+            'Casual Leave', 'Earned Leave', 'Sick Leave', 
+            'Public Holiday', 'Optional Holiday', 'Compensatory OFF', 
+            'Absent'
+        ])
+    }
+
+    // Apply RBAC or URL filters
+    if ((userRole === 'manager' || userRole === 'hod') && userDept) {
+        leaveQuery = leaveQuery.eq('department', userDept)
+    } else if (deptParam) {
+        leaveQuery = leaveQuery.eq('department', deptParam)
+    }
+
+    const desigArray = desigParam ? desigParam.split(',') : []
+    if (desigArray.length > 0) {
+        leaveQuery = leaveQuery.in('designation', desigArray)
+    }
+
+    // Fetch master list of departments & designations for filters
+    const [{ data: rows }, { data: leaveRows }, { data: empMeta }] = await Promise.all([
+        query,
+        leaveQuery,
+        supabase.from('employees').select('department, designation')
+    ])
+
+    const departments = Array.from(new Set(empMeta?.map(e => e.department).filter(Boolean))) as string[]
+    const designations = Array.from(new Set(empMeta?.map(e => e.designation).filter(Boolean))) as string[]
 
     return (
         <TrendsClient 
             initialData={(rows as HistoricalMetricsRow[]) || []} 
+            initialLeaveData={(leaveRows as Partial<DailyRosterRow>[]) || []}
             initialFromDate={fromDate} 
-            initialToDate={toDate} 
+            initialToDate={toDate}
+            initialDept={deptParam}
+            initialDesig={desigParam}
+            initialLeaveType={leaveTypeParam}
+            departments={departments}
+            designations={designations}
+            userRole={userRole}
+            userDept={userDept}
         />
     )
 }

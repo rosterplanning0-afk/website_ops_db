@@ -41,7 +41,18 @@ export function RosterPlannerDashboardView({ department, allowedEmployeeIds }: R
     const [crewTypes, setCrewTypes] = useState<string[]>([])
     const [categoryFilter, setCategoryFilter] = useState<string>('all')
     const [expiringCompetencies, setExpiringCompetencies] = useState<any[]>([])
+    const [activeEmployeeIds, setActiveEmployeeIds] = useState<Set<string>>(new Set())
     const supabase = createClient()
+
+    useEffect(() => {
+        async function fetchActiveEmployees() {
+            const { data } = await supabase.from('employees').select('employee_id')
+            if (data) {
+                setActiveEmployeeIds(new Set(data.map(e => e.employee_id)))
+            }
+        }
+        fetchActiveEmployees()
+    }, [])
 
     useEffect(() => {
         async function fetchExpiring() {
@@ -118,6 +129,11 @@ export function RosterPlannerDashboardView({ department, allowedEmployeeIds }: R
         }
         return result
     }, [data, crewFilter, searchTerm])
+
+    const missingStaff = useMemo(() => {
+        if (activeEmployeeIds.size === 0) return []
+        return filteredData.filter(r => r.emp_id && !activeEmployeeIds.has(r.emp_id))
+    }, [filteredData, activeEmployeeIds])
 
     const kpis = useMemo(() => calculateKPIs(filteredData), [filteredData])
 
@@ -259,6 +275,41 @@ export function RosterPlannerDashboardView({ department, allowedEmployeeIds }: R
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Missing Staff Section */}
+            {missingStaff.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-4 space-y-4">
+                    <p className="text-sm font-medium text-amber-800">
+                        {missingStaff.length} rostered staff {missingStaff.length === 1 ? 'is' : 'are'} missing from the active employee master for the current filters.
+                    </p>
+                    <div className="overflow-x-auto bg-white rounded-md border border-amber-100">
+                        <table className="w-full text-xs">
+                            <thead>
+                                <tr className="border-b bg-slate-50 text-slate-500">
+                                    <th className="text-left py-2 px-4 font-semibold uppercase">Name</th>
+                                    <th className="text-left py-2 px-4 font-semibold uppercase">Emp ID</th>
+                                    <th className="text-left py-2 px-4 font-semibold uppercase">Crew Type</th>
+                                    <th className="text-left py-2 px-4 font-semibold uppercase">Duty Code Raw</th>
+                                    <th className="text-left py-2 px-4 font-semibold uppercase">Shift Start</th>
+                                    <th className="text-left py-2 px-4 font-semibold uppercase">Shift End</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {missingStaff.map((staff, i) => (
+                                    <tr key={i} className="border-b last:border-0 hover:bg-slate-50/50">
+                                        <td className="py-2 px-4 font-medium text-slate-800">{staff.name || '—'}</td>
+                                        <td className="py-2 px-4 font-mono text-slate-600">{staff.emp_id}</td>
+                                        <td className="py-2 px-4 text-slate-600">{staff.crew_type || '—'}</td>
+                                        <td className="py-2 px-4 text-slate-600">{staff.duty_code_raw || '—'}</td>
+                                        <td className="py-2 px-4 font-mono text-slate-500">{staff.shift_start || '—'}</td>
+                                        <td className="py-2 px-4 font-mono text-slate-500">{staff.shift_end || '—'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

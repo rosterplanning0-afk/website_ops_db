@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Users, Search, Filter, Edit, Download } from 'lucide-react'
+import { Users, Search, Filter, Edit, Download, UserPlus } from 'lucide-react'
 import { EditEmployeeDialog } from '@/components/employees/edit-employee-dialog'
+import { AddEmployeeDialog } from '@/components/employees/add-employee-dialog'
 import * as XLSX from 'xlsx'
 import { useRouter } from 'next/navigation'
 
@@ -31,6 +32,7 @@ export function EmployeeListClient({
     const [employees, setEmployees] = useState<any[]>(initialEmployees)
     const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null)
     const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -237,6 +239,15 @@ export function EmployeeListClient({
                     <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> All Employees</CardTitle>
                         <div className="flex items-center gap-4">
+                            {(isAdmin || userRoleState === 'roster_planners') && (
+                                <Button 
+                                    onClick={() => setIsAddDialogOpen(true)}
+                                    className="bg-red-600 hover:bg-red-700 flex items-center gap-2"
+                                >
+                                    <UserPlus className="h-4 w-4" />
+                                    Add Employee
+                                </Button>
+                            )}
                             {userRoleState !== 'employee' && (
                                 <div className="flex items-center gap-2">
                                     <input
@@ -322,6 +333,14 @@ export function EmployeeListClient({
                 employee={selectedEmployee}
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
+                onSuccess={refreshData}
+                isAdmin={isAdmin}
+                userDelegations={userDelegations}
+            />
+
+            <AddEmployeeDialog
+                open={isAddDialogOpen}
+                onOpenChange={setIsAddDialogOpen}
                 onSuccess={refreshData}
                 isAdmin={isAdmin}
                 userDelegations={userDelegations}

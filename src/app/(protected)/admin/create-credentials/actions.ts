@@ -22,10 +22,36 @@ export async function createCredentials(input: CreateCredentialsInput) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Not authenticated')
 
-    // Check if caller is admin
+    // Check if caller is admin or roster planner
     const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
-    if (profile?.role !== 'admin') {
-        throw new Error('Only admins can perform this action')
+    const userRole = profile?.role
+
+    if (userRole !== 'admin' && userRole !== 'roster_planners') {
+        throw new Error('Only admins and roster planners can perform this action')
+    }
+
+    if (userRole === 'roster_planners') {
+        // Validate against manager_assignment_rights
+        const { data: delegations } = await supabase
+            .from('manager_assignment_rights')
+            .select('department_scope, designation_scope')
+            .eq('granted_to', user.id)
+
+        if (!delegations || delegations.length === 0) {
+            throw new Error('You do not have any assignment rights configured.')
+        }
+
+        const isAllowed = delegations.some(d => {
+            let desigs: string[] = []
+            if (Array.isArray(d.designation_scope)) desigs = d.designation_scope
+            else if (typeof d.designation_scope === 'string') desigs = d.designation_scope.split(',').map((s: string) => s.trim()).filter(Boolean)
+            
+            return d.department_scope === input.department && desigs.includes(input.designation)
+        })
+
+        if (!isAllowed) {
+            throw new Error(`You are not authorized to create an employee for Designation: ${input.designation} in Department: ${input.department}.`)
+        }
     }
 
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -38,6 +64,17 @@ export async function createCredentials(input: CreateCredentialsInput) {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         serviceKey
     )
+
+    // 0. Check if employee ID already exists
+    const { data: existingEmp } = await adminSupa
+        .from('employees')
+        .select('employee_id')
+        .eq('employee_id', input.employeeId)
+        .maybeSingle()
+        
+    if (existingEmp) {
+        throw new Error(`An employee with ID ${input.employeeId} already exists.`)
+    }
 
     // 1. Create Auth User
     const { data: authData, error: authError } = await adminSupa.auth.admin.createUser({
@@ -52,8 +89,8 @@ export async function createCredentials(input: CreateCredentialsInput) {
 
     const authUserId = authData.user.id
 
-    // 2. Upsert Employee record
-    const { error: employeeError } = await adminSupa.from('employees').upsert({
+    // 2. Create Employee record (Insert instead of upsert for safety)
+    const { error: employeeError } = await adminSupa.from('employees').insert({
         employee_id: input.employeeId,
         name: input.name,
         department: input.department,
@@ -63,7 +100,7 @@ export async function createCredentials(input: CreateCredentialsInput) {
         status: input.status,
         date_joined: input.dateJoined || null,
         manager_id: input.managerId || null,
-    }, { onConflict: 'employee_id' })
+    })
 
     if (employeeError) {
         // Rollback Auth User creation
