@@ -114,7 +114,8 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess, isAdmin, user
         setErrorMsg('')
         setSuccessMsg('')
 
-        const formData = new FormData(e.currentTarget)
+        const form = e.currentTarget
+        const formData = new FormData(form)
         const data = {
             employeeId: formData.get('employeeId') as string,
             name: formData.get('name') as string,
@@ -130,9 +131,15 @@ export function AddEmployeeDialog({ open, onOpenChange, onSuccess, isAdmin, user
         }
 
         try {
-            await createCredentials(data)
+            const res = await createCredentials(data)
+            if (res && res.error) {
+                setErrorMsg(res.error)
+                setLoading(false)
+                return
+            }
+            
             setSuccessMsg(`Successfully created credentials for ${data.name} (${data.employeeId}).`)
-            e.currentTarget.reset()
+            form.reset()
             if (isAdmin) {
                 setDepartment('Train Operations')
                 setDesignation('')
