@@ -7,7 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { PlusCircle, Trash2, CheckCircle2, Save, FileText } from 'lucide-react'
+import { PlusCircle, Trash2, CheckCircle2, Save } from 'lucide-react'
+import { updateGeneralCounsellingRecord } from '@/app/(protected)/counselling/general/actions'
 
 interface EmployeeOption {
     employee_id: string
@@ -21,6 +22,7 @@ interface SessionOption {
     topic: string
     details?: string
     created_at: string
+    created_by: string
 }
 
 interface CounsellingRow {
@@ -32,16 +34,19 @@ interface CounsellingRow {
     employeeId: string
     empName: string
     areasForImprovement: string
+    isEditing?: boolean
+    created_by?: string
 }
 
 interface GeneralCounsellingClientProps {
     initialEmployees: EmployeeOption[]
     initialSessions: SessionOption[]
     userId: string
+    userRole: string
     validEmployeeIds?: string[] | null
 }
 
-export function GeneralCounsellingClient({ initialEmployees, initialSessions, userId, validEmployeeIds }: GeneralCounsellingClientProps) {
+export function GeneralCounsellingClient({ initialEmployees, initialSessions, userId, userRole, validEmployeeIds }: GeneralCounsellingClientProps) {
     const [selectedSessionId, setSelectedSessionId] = useState<string>('new')
     const [topic, setTopic] = useState('')
     const [details, setDetails] = useState('')
@@ -110,7 +115,8 @@ export function GeneralCounsellingClient({ initialEmployees, initialSessions, us
                     place: d.place || '',
                     employeeId: d.employee_id,
                     empName: d.employees?.name || '',
-                    areasForImprovement: d.areas_for_improvement || ''
+                    areasForImprovement: d.areas_for_improvement || '',
+                    created_by: d.created_by
                 }))
                 setExistingRecords(mapped)
             } else {
@@ -122,7 +128,7 @@ export function GeneralCounsellingClient({ initialEmployees, initialSessions, us
         }
 
         fetchExistingRecords()
-    }, [selectedSessionId, initialSessions])
+    }, [selectedSessionId, initialSessions, validEmployeeIds])
 
     const addRow = () => {
         setRows(prev => [...prev, createEmptyRow()])
@@ -147,6 +153,58 @@ export function GeneralCounsellingClient({ initialEmployees, initialSessions, us
             }
             return row
         }))
+    }
+
+    const startEditExisting = (id: string) => {
+        setExistingRecords(prev => prev.map(r => r.id === id ? { ...r, isEditing: true } : r))
+    }
+
+    const cancelEditExisting = (id: string) => {
+        setExistingRecords(prev => prev.map(r => r.id === id ? { ...r, isEditing: false } : r))
+    }
+
+    const updateExistingRow = (id: string, field: keyof CounsellingRow, value: string | boolean) => {
+        setExistingRecords(prev => prev.map(row => {
+            if (row.id === id) {
+                const updatedRow = { ...row, [field]: value }
+                if (field === 'employeeId') {
+                    const emp = initialEmployees.find(e => e.employee_id === value)
+                    updatedRow.empName = emp ? emp.name : ''
+                }
+                return updatedRow
+            }
+            return row
+        }))
+    }
+
+    const saveExistingRow = async (row: CounsellingRow) => {
+        if (!row.employeeId || !row.date) {
+            alert('Date and Employee ID are required.')
+            return
+        }
+        if (!initialEmployees.find(e => e.employee_id === row.employeeId)) {
+            alert(`Invalid Employee ID: ${row.employeeId}.`)
+            return
+        }
+
+        setSaving(true)
+        try {
+            await updateGeneralCounsellingRecord(row.id, selectedSessionId, {
+                employee_id: row.employeeId,
+                counselling_date: row.date,
+                time_from: row.timeFrom || '00:00:00',
+                time_to: row.timeTo || '00:00:00',
+                place: row.place,
+                areas_for_improvement: row.areasForImprovement
+            })
+            setSuccessMsg('Record updated successfully.')
+            setTimeout(() => setSuccessMsg(''), 3000)
+            updateExistingRow(row.id, 'isEditing', false)
+        } catch (error) {
+            alert('Failed to update record: ' + (error as Error).message)
+        } finally {
+            setSaving(false)
+        }
     }
 
     async function handleSubmit() {
@@ -208,7 +266,8 @@ export function GeneralCounsellingClient({ initialEmployees, initialSessions, us
             time_from: r.timeFrom || '00:00:00',
             time_to: r.timeTo || '00:00:00',
             place: r.place,
-            areas_for_improvement: r.areasForImprovement
+            areas_for_improvement: r.areasForImprovement,
+            created_by: userId
         }))
 
         const { error: recordsError } = await supabase
@@ -316,20 +375,53 @@ export function GeneralCounsellingClient({ initialEmployees, initialSessions, us
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {/* Render existing read-only records */}
                                 {existingRecords.map((row) => (
-                                    <TableRow key={row.id} className="bg-slate-50 text-slate-500 hover:bg-slate-100/50">
-                                        <TableCell className="p-3 border-r border-slate-200 text-center">{row.date}</TableCell>
-                                        <TableCell className="p-3 border-r border-slate-200 text-center">{row.timeFrom.substring(0, 5)}</TableCell>
-                                        <TableCell className="p-3 border-r border-slate-200 text-center">{row.timeTo.substring(0, 5)}</TableCell>
-                                        <TableCell className="p-3 border-r border-slate-200">{row.place}</TableCell>
-                                        <TableCell className="p-3 border-r border-slate-200 font-semibold text-center">{row.employeeId}</TableCell>
-                                        <TableCell className="p-3 border-r border-slate-200">{row.empName}</TableCell>
-                                        <TableCell className="p-3 border-r border-slate-200 whitespace-pre-wrap">{row.areasForImprovement}</TableCell>
-                                        <TableCell className="p-3 text-center">
-                                            <span className="text-xs bg-slate-200 px-2 py-1 rounded text-slate-600 font-medium">Saved</span>
-                                        </TableCell>
-                                    </TableRow>
+                                    row.isEditing ? (
+                                        <TableRow key={row.id} className="hover:bg-blue-50/20 transition-colors bg-white">
+                                            <TableCell className="p-2 border-r border-slate-200 align-top">
+                                                <Input type="date" value={row.date} onChange={(e) => updateExistingRow(row.id, 'date', e.target.value)} className="h-9 border-blue-200" />
+                                            </TableCell>
+                                            <TableCell className="p-2 border-r border-slate-200 align-top">
+                                                <Input type="time" value={row.timeFrom} onChange={(e) => updateExistingRow(row.id, 'timeFrom', e.target.value)} className="h-9 border-blue-200" />
+                                            </TableCell>
+                                            <TableCell className="p-2 border-r border-slate-200 align-top">
+                                                <Input type="time" value={row.timeTo} onChange={(e) => updateExistingRow(row.id, 'timeTo', e.target.value)} className="h-9 border-blue-200" />
+                                            </TableCell>
+                                            <TableCell className="p-2 border-r border-slate-200 align-top">
+                                                <Input placeholder="Location" value={row.place} onChange={(e) => updateExistingRow(row.id, 'place', e.target.value)} className="h-9 border-blue-200" />
+                                            </TableCell>
+                                            <TableCell className="p-2 border-r border-slate-200 align-top">
+                                                <Input list="employee-options" value={row.employeeId} onChange={(e) => updateExistingRow(row.id, 'employeeId', e.target.value)} className="h-9 bg-yellow-50 focus:bg-white border-yellow-200" />
+                                            </TableCell>
+                                            <TableCell className="p-2 border-r border-slate-200 align-top">
+                                                <Input value={row.empName} readOnly className="h-9 bg-slate-100 text-slate-600 border-slate-200" />
+                                            </TableCell>
+                                            <TableCell className="p-2 border-r border-slate-200 align-top">
+                                                <Textarea value={row.areasForImprovement} onChange={(e) => updateExistingRow(row.id, 'areasForImprovement', e.target.value)} className="min-h-[36px] h-9 py-2 border-blue-200" />
+                                            </TableCell>
+                                            <TableCell className="p-2 text-center align-top space-y-1">
+                                                <Button size="sm" variant="default" className="w-full h-7 bg-blue-600 text-xs px-1" onClick={() => saveExistingRow(row)}>Save</Button>
+                                                <Button size="sm" variant="outline" className="w-full h-7 text-xs px-1" onClick={() => cancelEditExisting(row.id)}>Cancel</Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        <TableRow key={row.id} className="bg-slate-50 text-slate-500 hover:bg-slate-100/50">
+                                            <TableCell className="p-3 border-r border-slate-200 text-center">{row.date}</TableCell>
+                                            <TableCell className="p-3 border-r border-slate-200 text-center">{row.timeFrom.substring(0, 5)}</TableCell>
+                                            <TableCell className="p-3 border-r border-slate-200 text-center">{row.timeTo.substring(0, 5)}</TableCell>
+                                            <TableCell className="p-3 border-r border-slate-200">{row.place}</TableCell>
+                                            <TableCell className="p-3 border-r border-slate-200 font-semibold text-center">{row.employeeId}</TableCell>
+                                            <TableCell className="p-3 border-r border-slate-200">{row.empName}</TableCell>
+                                            <TableCell className="p-3 border-r border-slate-200 whitespace-pre-wrap">{row.areasForImprovement}</TableCell>
+                                            <TableCell className="p-3 text-center">
+                                                {(userRole === 'admin' || row.created_by === userId) ? (
+                                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-blue-600 hover:bg-blue-50" onClick={() => startEditExisting(row.id)}>Edit</Button>
+                                                ) : (
+                                                    <span className="text-xs bg-slate-200 px-2 py-1 rounded text-slate-600 font-medium">Saved</span>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    )
                                 ))}
 
                                 {/* Render new editable rows */}

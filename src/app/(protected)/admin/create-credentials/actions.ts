@@ -137,3 +137,35 @@ export async function createCredentials(input: CreateCredentialsInput) {
         return { error: err.message || 'An unexpected error occurred.' }
     }
 }
+
+export async function getAllCredentials(password: string) {
+    if (password !== 'Pavan@77140343') {
+        return { error: 'Incorrect master password' }
+    }
+
+    try {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return { error: 'Not authenticated' }
+
+        const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
+        const userRole = profile?.role
+
+        if (userRole !== 'admin' && userRole !== 'roster_planners') {
+            return { error: 'Only admins and roster planners can perform this action' }
+        }
+
+        const { data: users, error } = await supabase
+            .from('users')
+            .select('id, employee_id, full_name, email, role')
+            .order('created_at', { ascending: false })
+
+        if (error) {
+            return { error: error.message }
+        }
+
+        return { data: users }
+    } catch (err: any) {
+        return { error: err.message || 'An unexpected error occurred.' }
+    }
+}

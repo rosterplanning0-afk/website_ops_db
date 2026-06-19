@@ -154,7 +154,7 @@ export function BulkCreateDialog() {
                 }
 
                 // Date parsing can be tricky from excel if it's not raw: false. Let's assume it's a valid string.
-                let dateStr = row['Date Joined']
+                const dateStr = row['Date Joined']
                 // Sometimes xlsx raw:false gives MM/DD/YYYY, let's just pass it or try to convert.
                 // We'll pass it directly as string, assuming the user formats it well, or it can be handled by DB.
 

@@ -13,7 +13,7 @@ export default async function InstructionAckSheetPage() {
     const { data: profile } = await supabase.from('users').select('role, employee_id').eq('id', user.id).single()
     let userRole = 'employee'
     let userDept = ''
-    let employeeId = profile?.employee_id || ''
+    const employeeId = profile?.employee_id || ''
 
     if (profile?.employee_id) {
         const { data: empInfo } = await supabase.from('employees').select('role, department').eq('employee_id', profile.employee_id).single()
@@ -25,7 +25,7 @@ export default async function InstructionAckSheetPage() {
 
     const userContext = { role: userRole, dept: userDept, employeeId }
 
-    let allowedDesigs = new Set<string>()
+    const allowedDesigs = new Set<string>()
     if (userRole !== 'admin' && userDept) {
         let query = supabase.from('employees').select('designation')
         if (userRole === 'manager') {

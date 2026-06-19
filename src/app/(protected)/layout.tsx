@@ -57,12 +57,20 @@ export default async function ProtectedLayout({
         })
     }
 
-    // Force overrides for Line Inspectors
+    // Force overrides for Line Inspectors and Crew Controllers
     const isLineInspector = !!empData?.is_line_inspector
+    const isCrewController = userDesignation === 'Crew Controller'
+    
     if (isLineInspector) {
         accessOverrides['Reports'] = true
         accessOverrides['/reports/inspection-stats'] = true
         accessOverrides['/train-operations/new-inspection'] = true
+    }
+
+    if (isLineInspector || isCrewController) {
+        accessOverrides['Counselling'] = true
+        accessOverrides['/counselling/general'] = true
+        accessOverrides['/counselling'] = false
     }
 
     // Hide Line Inspectors delegation from non-Train Ops managers/HODs

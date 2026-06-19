@@ -42,7 +42,7 @@ export default async function FatigueManagementPage({ searchParams }: { searchPa
     let hasMore = true
 
     while (hasMore) {
-        let query = supabase
+        const query = supabase
             .from('v_daily_roster_summary')
             .select('*')
             .gte('date', fromDate)

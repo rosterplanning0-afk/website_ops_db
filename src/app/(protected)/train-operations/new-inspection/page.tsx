@@ -13,7 +13,7 @@ export default async function NewTOInspectionForm() {
     const { data: profile } = await supabase.from('users').select('role, employee_id, full_name').eq('id', user.id).single()
     let userRole = profile?.role || 'employee'
     let isLineInspector = false
-    let inspectorName = profile?.full_name || user.email || ''
+    const inspectorName = profile?.full_name || user.email || ''
 
     if (profile?.employee_id) {
         const { data: emp } = await supabase.from('employees').select('role, is_line_inspector').eq('employee_id', profile.employee_id).single()

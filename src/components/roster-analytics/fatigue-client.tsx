@@ -79,7 +79,7 @@ export function FatigueClient({ initialData, initialFromDate, initialToDate }: F
 
         const datesRange: string[] = []
         if (initialFromDate && initialToDate) {
-            let current = new Date(initialFromDate)
+            const current = new Date(initialFromDate)
             const end = new Date(initialToDate)
             while (current <= end) {
                 datesRange.push(formatDate(current))

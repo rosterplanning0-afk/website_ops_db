@@ -33,16 +33,17 @@ export default async function GeneralCounsellingPage() {
 
     const { data: sessions } = await supabase
         .from('general_counselling_sessions')
-        .select('id, topic, details, created_at')
+        .select('id, topic, details, created_at, created_by')
         .order('created_at', { ascending: false })
 
     const validEmployeeIds = userRole !== 'admin' ? availableEmployees.map(e => e.employee_id) : null
 
     return (
         <GeneralCounsellingClient 
-            initialEmployees={availableEmployees as any[]}
+            initialEmployees={availableEmployees as unknown as { employee_id: string; name: string; designation: string; department: string }[]}
             initialSessions={sessions || []}
             userId={user.id}
+            userRole={userRole}
             validEmployeeIds={validEmployeeIds}
         />
     )

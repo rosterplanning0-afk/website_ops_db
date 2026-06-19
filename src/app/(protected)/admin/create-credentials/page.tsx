@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { UserPlus, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { createCredentials } from './actions'
 import { BulkCreateDialog } from './bulk-create-dialog'
+import { CredentialsTable } from './credentials-table'
 
 const ROLES = [
     { value: 'admin', label: 'Admin' },
@@ -272,6 +273,8 @@ export default function CreateCredentialsPage() {
                     </form>
                 </CardContent>
             </Card>
+
+            <CredentialsTable />
         </div>
     )
 }

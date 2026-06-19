@@ -28,7 +28,7 @@ export function calcWorkingHours(start: string | null, end: string | null): numb
     if (!start || !end) return 0
     const [sh, sm] = start.split(':').map(Number)
     const [eh, em] = end.split(':').map(Number)
-    let startMin = sh * 60 + sm
+    const startMin = sh * 60 + sm
     let endMin = eh * 60 + em
     // Handle overnight crossings
     if (endMin <= startMin) endMin += 24 * 60
@@ -44,7 +44,7 @@ export function calcRestHours(
     if (!prevEnd || !currentStart) return 0
     const [peh, pem] = prevEnd.split(':').map(Number)
     const [csh, csm] = currentStart.split(':').map(Number)
-    let prevEndMin = peh * 60 + pem
+    const prevEndMin = peh * 60 + pem
     let curStartMin = csh * 60 + csm
     if (!isSameDay) curStartMin += 24 * 60
     return Math.max(0, (curStartMin - prevEndMin) / 60)
