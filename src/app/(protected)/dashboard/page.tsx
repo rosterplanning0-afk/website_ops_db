@@ -142,13 +142,15 @@ export default async function DashboardPage() {
     })
 
     const today = new Date()
-    const pendingList = departmentEmployees.map(emp => {
-        const lastDate = inspectionMap.get(emp.employee_id)
-        const daysPending = lastDate
-            ? Math.floor((today.getTime() - new Date(lastDate).getTime()) / 86400000)
-            : 999 // Never inspected = highest urgency
-        return { ...emp, lastInspectionDate: lastDate || null, daysPending }
-    }).sort((a, b) => b.daysPending - a.daysPending)
+    const pendingList = departmentEmployees
+        .filter(emp => emp.designation && ['Train Operator', 'Train Attendant'].includes(emp.designation))
+        .map(emp => {
+            const lastDate = inspectionMap.get(emp.employee_id)
+            const daysPending = lastDate
+                ? Math.floor((today.getTime() - new Date(lastDate).getTime()) / 86400000)
+                : 999 // Never inspected = highest urgency
+            return { ...emp, lastInspectionDate: lastDate || null, daysPending }
+        }).sort((a, b) => b.daysPending - a.daysPending)
 
     // ── Inspector stats (for HoD) ──
     let inspectorQuery = supabase
