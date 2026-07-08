@@ -162,6 +162,8 @@ export const sidebarConfig: SidebarItem[] = [
     },
 ]
 
+const COMMON_DESIGNATIONS = ['CXO', 'HOD', 'Manager', 'AM']
+
 export const DEPT_CREW_MAPPING: Record<string, string[]> = {
     'OCC': [
         'Traffic Controller',
@@ -170,21 +172,29 @@ export const DEPT_CREW_MAPPING: Record<string, string[]> = {
         'Traction Power Controller',
         'Rolling Stock Controller',
         'Auxiliary System Controller',
-        'Depot Controller'
+        'Depot Controller',
+        ...COMMON_DESIGNATIONS
     ],
     'Train Operations': [
         'Train Operators',
         'Train Attendants',
-        'Crew Controller'
+        'Crew Controller',
+        ...COMMON_DESIGNATIONS
     ],
     'Station Operations': [
         'Station Controller',
-        'Excess Fare Officer'
+        'Excess Fare Officer',
+        ...COMMON_DESIGNATIONS
     ],
     'Station Control': [ // Mapping alias
         'Station Controller',
-        'Excess Fare Officer'
-    ]
+        'Excess Fare Officer',
+        ...COMMON_DESIGNATIONS
+    ],
+    'Management': [...COMMON_DESIGNATIONS],
+    'HR': [...COMMON_DESIGNATIONS],
+    'Maintenance': [...COMMON_DESIGNATIONS],
+    'Other': [...COMMON_DESIGNATIONS]
 }
 
 export function getFilteredSidebar(
