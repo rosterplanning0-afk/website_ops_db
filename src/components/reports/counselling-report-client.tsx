@@ -20,6 +20,7 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral, use
     const [reportType, setReportType] = useState<'individual' | 'general'>(canViewIndividual ? 'individual' : 'general')
     const [dateFrom, setDateFrom] = useState('')
     const [dateTo, setDateTo] = useState('')
+    const [month, setMonth] = useState('')
     const [loading, setLoading] = useState(false)
     const [data, setData] = useState<any[]>([])
     const [hasSearched, setHasSearched] = useState(false)
@@ -37,7 +38,7 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral, use
             let query = supabase
                 .from('employee_counselling')
                 .select(`
-                    id, counselling_date, category, reason, score, remarks,
+                    id, counselling_date, category, reason, score, remarks, created_at,
                     employee_id,
                     employees!inner (name, department, designation),
                     users:counselled_by (full_name)
@@ -62,7 +63,7 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral, use
             let query = supabase
                 .from('general_counselling_records')
                 .select(`
-                    id, counselling_date, time_from, time_to, place, areas_for_improvement,
+                    id, counselling_date, time_from, time_to, place, areas_for_improvement, created_at,
                     employee_id,
                     employees!inner (name, department, designation),
                     general_counselling_sessions (topic, created_by)
@@ -108,6 +109,7 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral, use
         if (reportType === 'individual') {
             exportData = data.map(r => ({
                 'Date': r.counselling_date,
+                'Recorded At': new Date(r.created_at).toLocaleString('en-IN'),
                 'Employee ID': r.employee_id,
                 'Employee Name': r.employees?.name || '-',
                 'Department': r.employees?.department || '-',
@@ -122,6 +124,7 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral, use
             exportData = data.map(r => ({
                 'Date': r.counselling_date,
                 'Time': `${r.time_from} to ${r.time_to}`,
+                'Recorded At': new Date(r.created_at).toLocaleString('en-IN'),
                 'Place': r.place || '-',
                 'Employee ID': r.employee_id,
                 'Employee Name': r.employees?.name || '-',
@@ -167,12 +170,32 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral, use
                             </select>
                         </div>
                         <div className="grid gap-2 w-full md:w-1/4">
+                            <label className="text-sm font-semibold text-slate-700">Month</label>
+                            <Input 
+                                type="month" 
+                                value={month} 
+                                onChange={e => {
+                                    setMonth(e.target.value)
+                                    if (e.target.value) {
+                                        const year = parseInt(e.target.value.split('-')[0])
+                                        const m = parseInt(e.target.value.split('-')[1])
+                                        const lastDay = new Date(year, m, 0).getDate()
+                                        setDateFrom(`${e.target.value}-01`)
+                                        setDateTo(`${e.target.value}-${lastDay}`)
+                                    } else {
+                                        setDateFrom('')
+                                        setDateTo('')
+                                    }
+                                }} 
+                            />
+                        </div>
+                        <div className="grid gap-2 w-full md:w-1/4">
                             <label className="text-sm font-semibold text-slate-700">From Date</label>
-                            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                            <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setMonth(''); }} />
                         </div>
                         <div className="grid gap-2 w-full md:w-1/4">
                             <label className="text-sm font-semibold text-slate-700">To Date</label>
-                            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                            <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setMonth(''); }} />
                         </div>
                         <div className="w-full md:w-auto">
                             <Button onClick={generateReport} disabled={loading} className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700">
@@ -211,7 +234,8 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral, use
                                     <TableBody>
                                         {data.map((rec, i) => (
                                             <TableRow key={i}>
-                                                <TableCell className="whitespace-nowrap">{rec.counselling_date}</TableCell>
+                                                <TableCell className="font-mono text-sm">{rec.counselling_date}</TableCell>
+                                                <TableCell className="text-xs text-slate-500">{new Date(rec.created_at).toLocaleString('en-IN')}</TableCell>
                                                 <TableCell className="font-medium text-slate-700">{rec.employee_id}</TableCell>
                                                 <TableCell>{rec.employees?.name}</TableCell>
                                                 <TableCell className="text-center">
@@ -233,6 +257,7 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral, use
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
                                             <TableHead className="font-bold text-slate-700">Date</TableHead>
+                                            <TableHead className="font-bold text-slate-700">Recorded At</TableHead>
                                             <TableHead className="font-bold text-slate-700">Employee ID</TableHead>
                                             <TableHead className="font-bold text-slate-700">Name</TableHead>
                                             <TableHead className="font-bold text-slate-700">Topic</TableHead>
@@ -244,9 +269,10 @@ export function CounsellingReportClient({ canViewIndividual, canViewGeneral, use
                                         {data.map((rec, i) => (
                                             <TableRow key={i}>
                                                 <TableCell className="whitespace-nowrap">
-                                                    {rec.counselling_date}<br/>
-                                                    <span className="text-xs text-slate-400">{rec.time_from} - {rec.time_to}</span>
+                                                    <div className="font-medium text-sm">{rec.counselling_date}</div>
+                                                    <div className="text-xs text-slate-500">{rec.time_from} - {rec.time_to}</div>
                                                 </TableCell>
+                                                <TableCell className="text-xs text-slate-500">{new Date(rec.created_at).toLocaleString('en-IN')}</TableCell>
                                                 <TableCell className="font-medium text-slate-700">{rec.employee_id}</TableCell>
                                                 <TableCell>{rec.employees?.name}</TableCell>
                                                 <TableCell className="text-sm">

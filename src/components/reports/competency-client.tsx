@@ -76,6 +76,7 @@ export function CompetencyClient({ userRole, userDept, allEmployees, allowedEmpI
     const [designation, setDesignation] = useState('all')
     const [threshold, setThreshold] = useState('90')
     const [empFilter, setEmpFilter] = useState('')
+    const [month, setMonth] = useState('')
 
     const [rows, setRows] = useState<ProcessedRow[]>([])
     const [loading, setLoading] = useState(false)
@@ -99,14 +100,28 @@ export function CompetencyClient({ userRole, userDept, allEmployees, allowedEmpI
             .from('employee_competencies')
             .select('*')
 
-        if (reportType === 'expiring') {
-            const cutoff = new Date(today.getTime() + parseInt(threshold) * 86400000)
-                .toISOString().split('T')[0]
-            query = query.gte('valid_till', todayStr).lte('valid_till', cutoff)
-        } else if (reportType === 'expired') {
-            query = query.not('valid_till', 'is', null).lt('valid_till', todayStr)
-        } else if (reportType === 'active') {
-            query = query.or(`valid_till.gte.${todayStr},valid_till.is.null`)
+        if (month) {
+            const year = parseInt(month.split('-')[0])
+            const m = parseInt(month.split('-')[1])
+            const lastDay = new Date(year, m, 0).getDate()
+            const monthStart = `${month}-01`
+            const monthEnd = `${month}-${lastDay}`
+
+            if (reportType === 'history' || reportType === 'active') {
+                query = query.gte('valid_from', monthStart).lte('valid_from', monthEnd)
+            } else {
+                query = query.gte('valid_till', monthStart).lte('valid_till', monthEnd)
+            }
+        } else {
+            if (reportType === 'expiring') {
+                const cutoff = new Date(today.getTime() + parseInt(threshold) * 86400000)
+                    .toISOString().split('T')[0]
+                query = query.gte('valid_till', todayStr).lte('valid_till', cutoff)
+            } else if (reportType === 'expired') {
+                query = query.not('valid_till', 'is', null).lt('valid_till', todayStr)
+            } else if (reportType === 'active') {
+                query = query.or(`valid_till.gte.${todayStr},valid_till.is.null`)
+            }
         }
 
         if (department !== 'all') query = query.eq('department', department)
@@ -143,7 +158,7 @@ export function CompetencyClient({ userRole, userDept, allEmployees, allowedEmpI
 
         setRows(processed)
         setLoading(false)
-    }, [reportType, department, designation, threshold, empFilter, allowedEmpIdsSet, allEmployees])
+    }, [reportType, department, designation, threshold, empFilter, month, allowedEmpIdsSet, allEmployees])
 
     function downloadExcel() {
         if (rows.length === 0) return
@@ -238,8 +253,19 @@ export function CompetencyClient({ userRole, userDept, allEmployees, allowedEmpI
                             </select>
                         </div>
 
-                        {/* Threshold (expiring only) */}
-                        {reportType === 'expiring' && (
+                        {/* Month Filter */}
+                        <div className="space-y-1.5">
+                            <Label>Filter Month <span className="text-slate-400 font-normal text-xs">(optional)</span></Label>
+                            <input 
+                                type="month" 
+                                value={month} 
+                                onChange={e => { setMonth(e.target.value); setThreshold('90'); }}
+                                className="w-full border border-input rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-400"
+                            />
+                        </div>
+
+                        {/* Threshold (expiring only, hidden if month selected) */}
+                        {reportType === 'expiring' && !month && (
                             <div className="space-y-1.5">
                                 <Label>Expiry Threshold</Label>
                                 <select

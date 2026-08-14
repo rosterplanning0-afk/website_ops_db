@@ -2,6 +2,9 @@
 
 import { useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import type { DailyRosterRow } from '@/lib/roster-utils'
 import { LEAVE_TYPES } from '@/lib/roster-utils'
 
@@ -74,10 +77,41 @@ export function EmployeeLeaveReport({ leaveData }: LeaveReportProps) {
         return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     }
 
+    const downloadExcel = () => {
+        if (reportData.length === 0) return
+
+        const exportRows = reportData.map(row => {
+            const rowData: Record<string, any> = {
+                'Employee ID': row.empId,
+                'Name': row.name,
+                'Designation': row.designation,
+            }
+
+            allMonths.forEach(m => {
+                rowData[formatMonth(m)] = row.monthlyLeaves[m] || 0
+            })
+
+            rowData['Total Leaves'] = row.totalLeaves
+            rowData['Total Absent'] = row.totalAbsent
+            rowData['Total All'] = row.totalAll
+
+            return rowData
+        })
+
+        const ws = XLSX.utils.json_to_sheet(exportRows)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, 'Leave Report')
+        XLSX.writeFile(wb, `employee_leave_report_${new Date().toISOString().split('T')[0]}.xlsx`)
+    }
+
     return (
         <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">Employee Wise Leave Report</CardTitle>
+                <Button variant="outline" size="sm" onClick={downloadExcel} disabled={reportData.length === 0}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Excel
+                </Button>
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto max-h-[600px]">

@@ -53,7 +53,13 @@ export function InspectionStatsClient({
     userDept, 
     isLineInspector 
 }: InspectionStatsClientProps) {
-    const inspections = initialInspections
+    const [dateFrom, setDateFrom] = useState('')
+    const [dateTo, setDateTo] = useState('')
+    const inspections = initialInspections.filter(i => {
+        if (dateFrom && i.inspection_date < dateFrom) return false
+        if (dateTo && i.inspection_date > dateTo) return false
+        return true
+    })
     const employees = initialEmployees
 
     // Tabs & View states
@@ -220,6 +226,7 @@ export function InspectionStatsClient({
     function downloadDesignationSummaryExcel() {
         if (employeeDesignationStats.length === 0) return
         const exportRows = employeeDesignationStats.map(s => ({
+            'Employee ID': s.employee_id,
             'Name': s.name,
             'Designation': s.designation || 'Unknown',
             'Avg. Driving (/3)': Number(s.avgDriving.toFixed(2)),
@@ -230,13 +237,65 @@ export function InspectionStatsClient({
             'Total Inspections': s.totalInspections,
         }))
 
-        const ws = XLSX.utils.json_to_sheet(exportRows)
+        const wsSummary = XLSX.utils.json_to_sheet(exportRows)
         const wb = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(wb, ws, `${selectedDesignationSummary || 'Designation'} Summary`)
-        XLSX.writeFile(wb, `${(selectedDesignationSummary || 'designation').toLowerCase().replace(/\\s+/g, '_')}_summary_${new Date().toISOString().split('T')[0]}.xlsx`)
+        XLSX.utils.book_append_sheet(wb, wsSummary, `${selectedDesignationSummary || 'Designation'} Summary`)
+
+        // Add detailed sheet
+        const detailedInspections = inspections.filter(i => {
+            const emp = empMap.get(i.employee_id)
+            return emp?.designation === selectedDesignationSummary
+        })
+
+        const detailedRows = detailedInspections.map(insp => {
+            const emp = empMap.get(insp.employee_id)
+            return {
+                'Inspection Date': insp.inspection_date,
+                'Employee ID': insp.employee_id,
+                'Employee Name': emp?.name || insp.employee_id,
+                'Designation': emp?.designation || '—',
+                'Inspector Name': insp.inspected_by_name || '—',
+                'Inspector Role': insp.inspected_by_role || '—',
+                'Part A (Driving)': insp.part_a_total || 0,
+                'Part B (Safety)': insp.part_b_total || 0,
+                'Part C (Comm)': insp.part_c_total || 0,
+                'Part D (General)': insp.part_d_total || 0,
+                'Overall Score': insp.overall_total || 0,
+            }
+        })
+
+        const wsDetailed = XLSX.utils.json_to_sheet(detailedRows)
+        XLSX.utils.book_append_sheet(wb, wsDetailed, 'Detailed Inspections')
+
+        XLSX.writeFile(wb, `${(selectedDesignationSummary || 'designation').toLowerCase().replace(/\s+/g, '_')}_summary_${new Date().toISOString().split('T')[0]}.xlsx`)
     }
 
     // Helper to render section questions details inside the UI
+    // Excel export for all fetched inspections
+    function downloadAllInspectionsExcel() {
+        if (inspections.length === 0) return
+        const exportRows = inspections.map(insp => {
+            const emp = empMap.get(insp.employee_id)
+            return {
+                'Inspection Date': insp.inspection_date,
+                'Employee ID': insp.employee_id,
+                'Employee Name': emp?.name || insp.employee_id,
+                'Designation': emp?.designation || '—',
+                'Inspector Name': insp.inspected_by_name || '—',
+                'Inspector Role': insp.inspected_by_role || '—',
+                'Part A (Driving)': insp.part_a_total || 0,
+                'Part B (Safety)': insp.part_b_total || 0,
+                'Part C (Comm)': insp.part_c_total || 0,
+                'Part D (General)': insp.part_d_total || 0,
+                'Overall Score': insp.overall_total || 0,
+            }
+        })
+        const ws = XLSX.utils.json_to_sheet(exportRows)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, 'All Inspections')
+        XLSX.writeFile(wb, `all_inspections_${new Date().toISOString().split('T')[0]}.xlsx`)
+    }
+
     function renderInspectionDetailsSection(title: string, scores: any[], maxScore: number, partCode: string) {
         const sectionScores = scores.filter(s => s.part === partCode)
         if (sectionScores.length === 0) return null
@@ -283,6 +342,28 @@ export function InspectionStatsClient({
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800">Inspection Reports & Analytics</h2>
                     <p className="text-slate-500 text-sm mt-0.5">View aggregated metrics, employee reports, or designation summaries.</p>
+                </div>
+                <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-md border border-slate-200">
+                    <div className="flex items-center gap-2">
+                        <Label htmlFor="date-from" className="text-sm font-semibold text-slate-700 whitespace-nowrap">From:</Label>
+                        <input 
+                            type="date" 
+                            id="date-from"
+                            value={dateFrom} 
+                            onChange={e => setDateFrom(e.target.value)}
+                            className="border border-slate-300 rounded-md p-1.5 text-sm bg-white"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Label htmlFor="date-to" className="text-sm font-semibold text-slate-700 whitespace-nowrap">To:</Label>
+                        <input 
+                            type="date" 
+                            id="date-to"
+                            value={dateTo} 
+                            onChange={e => setDateTo(e.target.value)}
+                            className="border border-slate-300 rounded-md p-1.5 text-sm bg-white"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -413,11 +494,15 @@ export function InspectionStatsClient({
                         </Card>
                     </div>
 
-                    {/* Recent Inspections Table */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Recent Inspections</CardTitle>
-                        </CardHeader>
+                {/* Recent Inspections Table */}
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5" /> All Inspections ({inspections.length})</CardTitle>
+                        <Button variant="outline" size="sm" onClick={downloadAllInspectionsExcel} disabled={inspections.length === 0}>
+                            <Download className="h-4 w-4 mr-2" />
+                            Export Excel
+                        </Button>
+                    </CardHeader>
                         <CardContent>
                             <div className="overflow-x-auto">
                                 <Table>
@@ -432,7 +517,7 @@ export function InspectionStatsClient({
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {recentInspections.map(insp => {
+                                        {inspections.map(insp => {
                                             const emp = empMap.get(insp.employee_id)
                                             return (
                                                 <TableRow key={insp.id}>
@@ -449,7 +534,7 @@ export function InspectionStatsClient({
                                                 </TableRow>
                                             )
                                         })}
-                                        {recentInspections.length === 0 && (
+                                        {inspections.length === 0 && (
                                             <TableRow>
                                                 <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No inspections found.</TableCell>
                                             </TableRow>
@@ -709,6 +794,7 @@ export function InspectionStatsClient({
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="bg-slate-50/80">
+                                                <TableHead>Employee ID</TableHead>
                                                 <TableHead>Name</TableHead>
                                                 <TableHead>Designation</TableHead>
                                                 <TableHead className="text-center">Avg. Driving (/3)</TableHead>
@@ -721,6 +807,7 @@ export function InspectionStatsClient({
                                         <TableBody>
                                             {employeeDesignationStats.map((stat, idx) => (
                                                 <TableRow key={idx}>
+                                                    <TableCell className="font-mono text-slate-600 text-sm">{stat.employee_id}</TableCell>
                                                     <TableCell className="font-semibold text-slate-800">{stat.name}</TableCell>
                                                     <TableCell className="text-sm text-slate-600">{stat.designation || '—'}</TableCell>
                                                     <TableCell className="text-center font-mono">{stat.avgDriving.toFixed(2)}</TableCell>

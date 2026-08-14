@@ -50,6 +50,7 @@ export function TrendsClient({
     const pathname = usePathname()
     const [fromDate, setFromDate] = useState<string>(initialFromDate)
     const [toDate, setToDate] = useState<string>(initialToDate)
+    const [month, setMonth] = useState<string>('')
     const [crewFilter, setCrewFilter] = useState<string>('all')
     const [dept, setDept] = useState<string>(initialDept)
     const [desig, setDesig] = useState<string[]>(initialDesig ? initialDesig.split(',') : [])
@@ -142,12 +143,33 @@ export function TrendsClient({
                 <CardContent className="pt-6">
                     <div className="flex flex-wrap gap-4 items-center">
                         <div className="flex items-center gap-2">
+                            <label className="text-sm font-semibold text-slate-700 whitespace-nowrap">Month:</label>
+                            <Input 
+                                type="month" 
+                                value={month} 
+                                onChange={e => {
+                                    setMonth(e.target.value)
+                                    if (e.target.value) {
+                                        const year = parseInt(e.target.value.split('-')[0])
+                                        const m = parseInt(e.target.value.split('-')[1])
+                                        const lastDay = new Date(year, m, 0).getDate()
+                                        const newFrom = `${e.target.value}-01`
+                                        const newTo = `${e.target.value}-${lastDay}`
+                                        setFromDate(newFrom)
+                                        setToDate(newTo)
+                                        applyFilters(newFrom, newTo, dept, desig, leaveType)
+                                    }
+                                }} 
+                                className="w-40" 
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
                             <label className="text-sm text-slate-500">From:</label>
-                            <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} onBlur={() => applyFilters()} className="w-44" />
+                            <Input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setMonth(''); }} onBlur={() => applyFilters()} className="w-40" />
                         </div>
                         <div className="flex items-center gap-2">
                             <label className="text-sm text-slate-500">To:</label>
-                            <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} onBlur={() => applyFilters()} className="w-44" />
+                            <Input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setMonth(''); }} onBlur={() => applyFilters()} className="w-40" />
                         </div>
                         
                         {/* Dept & Designation Filters (for Leave Report, but kept global) */}
